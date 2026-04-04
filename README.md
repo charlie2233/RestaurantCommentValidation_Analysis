@@ -33,7 +33,7 @@ the pipeline surfaces discrepancies explicitly and halts promotion of bad data.
 ```
 data/raw/          ← original workbooks, untouched
     │
-    ▼  qsr-audit ingest <source>
+    ▼  qsr-audit ingest-workbook --input <source>
 data/bronze/       ← raw data parsed into Parquet, schema-tagged, provenance recorded
     │
     ▼  qsr-audit validate --layer bronze
@@ -59,7 +59,7 @@ workbook's claims.
 make setup
 
 # 2. Ingest a workbook
-qsr-audit ingest data/raw/source_workbook.xlsx
+qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
 
 # 3. Validate the Silver layer
 qsr-audit validate --layer silver

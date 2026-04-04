@@ -12,7 +12,7 @@ test:
 	pytest
 
 run-ingest:
-	qsr-audit ingest data/raw/source_workbook.xlsx
+	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
 
 run-validate:
 	qsr-audit validate --layer silver

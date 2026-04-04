@@ -19,4 +19,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
 
+def get_settings() -> Settings:
+    return Settings()
+
+
 settings = Settings()
