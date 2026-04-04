@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f4ef;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #d7d1c7;
+        --accent: #1f4d4a;
+        --accent-soft: #e1efec;
+        --warn: #8a5a00;
+        --warn-soft: #f8efe0;
+        --fail: #8a1f1f;
+        --fail-soft: #fde8e8;
+        --good: #1e6b41;
+        --good-soft: #e5f3ea;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(180deg, var(--bg), #fff);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px 20px 56px;
+      }
+      .hero {
+        display: grid;
+        gap: 8px;
+        padding: 24px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(31, 41, 55, 0.06);
+        margin-bottom: 20px;
+      }
+      .eyebrow {
+        margin: 0;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      h1, h2, h3 {
+        margin: 0;
+        line-height: 1.2;
+      }
+      h1 { font-size: 32px; }
+      h2 { font-size: 22px; margin: 24px 0 12px; }
+      h3 { font-size: 16px; margin: 16px 0 8px; }
+      .subtle {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+      .grid.cards {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+      .grid.columns-2 {
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      }
+      .card, .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .metric-label {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+      }
+      .metric-value {
+        font-size: 26px;
+        font-weight: 750;
+      }
+      .metric-note {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 6px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        border: 1px solid transparent;
+      }
+      .badge.good { background: var(--good-soft); color: var(--good); border-color: rgba(30, 107, 65, 0.15); }
+      .badge.warn { background: var(--warn-soft); color: var(--warn); border-color: rgba(138, 90, 0, 0.15); }
+      .badge.fail { background: var(--fail-soft); color: var(--fail); border-color: rgba(138, 31, 31, 0.15); }
+      .badge.neutral { background: var(--accent-soft); color: var(--accent); border-color: rgba(31, 77, 74, 0.15); }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      th, td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f9f7f3;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      tr:last-child td { border-bottom: none; }
+      code, pre {
+        font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      ul, ol { margin: 8px 0 0 20px; }
+      .section {
+        margin-top: 18px;
+      }
+      .section .panel + .panel,
+      .section .panel + table,
+      .section table + .panel {
+        margin-top: 12px;
+      }
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .muted-list li {
+        color: var(--muted);
+      }
+      .empty {
+        color: var(--muted);
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">{{ "Global Scorecard" if mode == "global" else "Brand Scorecard" }}</p>
+        <h1>{{ title }}</h1>
+        <p class="subtle">Generated at {{ generated_at if generated_at else "unknown" }}. Local files only. Executive review first, analyst debugging second.</p>
+      </section>
+
+      {% if mode == "global" %}
+        {% set scorecard = global_scorecard %}
+        <section class="section">
+          <div class="grid cards">
+            <div class="card">
+              <div class="metric-label">Total brands</div>
+              <div class="metric-value">{{ scorecard.total_brands }}</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Passed brands</div>
+              <div class="metric-value">{{ scorecard.passed_brands }}</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Warning brands</div>
+              <div class="metric-value">{{ scorecard.warning_brands }}</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Failed brands</div>
+              <div class="metric-value">{{ scorecard.failed_brands }}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section grid columns-2">
+          <div class="panel">
+            <h2>Validation Snapshot</h2>
+            <div class="pill-row" style="margin-top: 12px;">
+              <span class="badge {{ 'good' if scorecard.validation.passed else 'fail' }}">{{ 'PASS' if scorecard.validation.passed else 'FAIL' }}</span>
+              <span class="badge neutral">Info {{ scorecard.validation.counts.get('info', 0) }}</span>
+              <span class="badge warn">Warnings {{ scorecard.validation.counts.get('warning', 0) }}</span>
+              <span class="badge fail">Errors {{ scorecard.validation.counts.get('error', 0) }}</span>
+            </div>
+            {% if scorecard.validation.findings %}
+              <ol class="muted-list">
+                {% for finding in scorecard.validation.findings[:6] %}
+                  <li><strong>{{ finding.get('severity', 'info') }}</strong> · {{ finding.get('message', 'No message') }}</li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <p class="empty">No validation findings were available.</p>
+            {% endif %}
+          </div>
+
+          <div class="panel">
+            <h2>Syntheticness Overview</h2>
+            <div class="pill-row" style="margin-top: 12px;">
+              <span class="badge neutral">Signals {{ scorecard.syntheticness_overview.get('total_signals', 0) }}</span>
+              <span class="badge warn">Weak {{ scorecard.syntheticness_overview.get('weak', 0) }}</span>
+              <span class="badge warn">Moderate {{ scorecard.syntheticness_overview.get('moderate', 0) }}</span>
+              <span class="badge fail">Strong {{ scorecard.syntheticness_overview.get('strong', 0) }}</span>
+              <span class="badge neutral">Unknown {{ scorecard.syntheticness_overview.get('unknown', 0) }}</span>
+            </div>
+            {% if scorecard.syntheticness_overview.get('top_signals') %}
+              <ul class="muted-list">
+                {% for item in scorecard.syntheticness_overview.get('top_signals') %}
+                  <li><strong>{{ item.get('signal_type', 'signal') }}</strong> · {{ item.get('plain_english', 'No description') }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="empty">No syntheticness signals were available.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Warning Counts by Category</h2>
+          {% if scorecard.warning_counts_by_category %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for category, count in scorecard.warning_counts_by_category.items() %}
+                  <tr>
+                    <td>{{ category }}</td>
+                    <td>{{ count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty">No warning categories were recorded.</p>
+          {% endif %}
+        </section>
+
+        <section class="section">
+          <h2>Fields With Weakest Provenance</h2>
+          {% if scorecard.fields_with_weakest_provenance %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Grade</th>
+                  <th>Average confidence</th>
+                  <th>Missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in scorecard.fields_with_weakest_provenance %}
+                  <tr>
+                    <td>{{ item.get('field', '-') }}</td>
+                    <td>{{ item.get('grade', '-') }}</td>
+                    <td>{{ item.get('average_confidence', '-') }}</td>
+                    <td>{{ item.get('missing_count', '-') }}/{{ item.get('brand_count', '-') }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty">No provenance summary available.</p>
+          {% endif %}
+        </section>
+
+        <section class="section">
+          <h2>Biggest Reconciliation Errors</h2>
+          {% if scorecard.biggest_reconciliation_errors %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Brand</th>
+                  <th>Field</th>
+                  <th>Absolute error</th>
+                  <th>Relative error</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in scorecard.biggest_reconciliation_errors %}
+                  <tr>
+                    <td>{{ item.get('brand_name', '-') }}</td>
+                    <td>{{ item.get('field', '-') }}</td>
+                    <td>{{ item.get('absolute_error', '-') }}</td>
+                    <td>{{ item.get('relative_error', '-') }}</td>
+                    <td>{{ item.get('credibility_grade', '-') }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty">No comparable reconciliation errors were available.</p>
+          {% endif %}
+        </section>
+
+        <section class="section">
+          <h2>Open Issues</h2>
+          {% if scorecard.open_issues %}
+            <ul>
+              {% for issue in scorecard.open_issues %}
+                <li>{{ issue }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="empty">No open issues were recorded.</p>
+          {% endif %}
+        </section>
+
+        <section class="section">
+          <h2>Brand Rollup</h2>
+          {% if brand_scorecards %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Brand</th>
+                  <th>Status</th>
+                  <th>Overall grade</th>
+                  <th>Reference coverage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in brand_scorecards %}
+                  <tr>
+                    <td>{{ item.brand_name or item.canonical_brand_name or '-' }}</td>
+                    <td><span class="badge {{ 'good' if item.status == 'pass' else 'warn' if item.status == 'warn' else 'fail' }}">{{ item.status }}</span></td>
+                    <td>{{ item.normalized_metrics.get('overall_credibility_grade', '-') if item.normalized_metrics else '-' }}</td>
+                    <td>{{ item.normalized_metrics.get('reference_source_count', '-') if item.normalized_metrics else '-' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty">No brand scorecards were available.</p>
+          {% endif %}
+        </section>
+      {% else %}
+        {% set scorecard = brand_scorecard %}
+        <section class="section grid columns-2">
+          <div class="panel">
+            <h2>Brand Summary</h2>
+            <p class="subtle" style="margin-top: 8px;">{{ scorecard.brand_name }} · canonical: {{ scorecard.canonical_brand_name }}</p>
+            <div class="pill-row" style="margin-top: 12px;">
+              <span class="badge {{ 'good' if scorecard.status == 'pass' else 'warn' if scorecard.status == 'warn' else 'fail' }}">{{ scorecard.status }}</span>
+              <span class="badge neutral">Overall grade {{ scorecard.normalized_metrics.get('overall_credibility_grade', '-') }}</span>
+              <span class="badge neutral">Reference sources {{ scorecard.normalized_metrics.get('reference_source_count', '-') }}</span>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>Normalized Metrics</h2>
+            {% if scorecard.normalized_metrics %}
+              <table>
+                <tbody>
+                  {% for key, value in scorecard.normalized_metrics.items() %}
+                    <tr>
+                      <td>{{ key }}</td>
+                      <td>{{ value }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="empty">No normalized metrics were available.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section grid columns-2">
+          <div class="panel">
+            <h2>Invariant Results</h2>
+            {% if scorecard.invariant_results %}
+              <ul class="muted-list">
+                {% for item in scorecard.invariant_results %}
+                  <li><strong>{{ item.get('severity', 'info') }}</strong> · {{ item.get('message', 'No message') }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="empty">No brand-specific invariant findings were recorded.</p>
+            {% endif %}
+          </div>
+          <div class="panel">
+            <h2>Provenance Grades</h2>
+            {% if scorecard.provenance_grades %}
+              {% for key, value in scorecard.provenance_grades.items() %}
+                <h3>{{ key }}</h3>
+                {% if value is mapping %}
+                  <table>
+                    <tbody>
+                      {% for subkey, subvalue in value.items() %}
+                        <tr>
+                          <td>{{ subkey }}</td>
+                          <td>{{ subvalue }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                {% else %}
+                  <p>{{ value }}</p>
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <p class="empty">No provenance grades were available.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section grid columns-2">
+          <div class="panel">
+            <h2>Reconciliation Errors</h2>
+            {% if scorecard.reconciliation_error_summary %}
+              <table>
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Reference value</th>
+                    <th>Absolute error</th>
+                    <th>Relative error</th>
+                    <th>Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in scorecard.reconciliation_error_summary %}
+                    <tr>
+                      <td>{{ item.get('field', '-') }}</td>
+                      <td>{{ item.get('reference_value', '-') }}</td>
+                      <td>{{ item.get('absolute_error', '-') }}</td>
+                      <td>{{ item.get('relative_error', '-') }}</td>
+                      <td>{{ item.get('credibility_grade', '-') }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="empty">No reconciliation comparisons were available.</p>
+            {% endif %}
+          </div>
+          <div class="panel">
+            <h2>Syntheticness Signals</h2>
+            {% if scorecard.syntheticness_signals %}
+              <ul class="muted-list">
+                {% for item in scorecard.syntheticness_signals %}
+                  <li><strong>{{ item.get('signal_type', 'signal') }}</strong> · {{ item.get('plain_english', 'No description') }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="empty">No brand-specific syntheticness signals were recorded.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Open Issues</h2>
+          {% if scorecard.open_issues %}
+            <ul>
+              {% for issue in scorecard.open_issues %}
+                <li>{{ issue }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="empty">No open issues were recorded.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
