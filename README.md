@@ -67,7 +67,10 @@ qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 # 4. Run syntheticness diagnostics on normalized core metrics
 qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
 
-# 5. Generate reports
+# 5. Reconcile against manual reference inputs
+qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/
+
+# 6. Generate reports
 qsr-audit report --output reports/
 ```
 
@@ -76,8 +79,16 @@ Or use the Makefile shortcuts:
 ```bash
 make run-ingest
 make run-validate
+make run-reconcile
 make run-report
 ```
+
+## Manual Reference Inputs
+
+Reference ingestion is intentionally manual-first. Populate local CSVs in `data/reference/`
+using the committed templates in `data/reference/templates/` rather than scraping unstable
+or paid sources automatically. Missing reference coverage is surfaced explicitly during
+reconciliation; it is never treated as silent confirmation.
 
 ## Next implementation steps
 

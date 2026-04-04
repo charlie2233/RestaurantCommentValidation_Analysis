@@ -1,4 +1,4 @@
-.PHONY: setup lint test run-ingest run-validate run-syntheticness run-report
+.PHONY: setup lint test run-ingest run-validate run-syntheticness run-reconcile run-report
 
 setup:
 	pip install -e ".[dev]"
@@ -19,6 +19,9 @@ run-validate:
 
 run-syntheticness:
 	qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
+
+run-reconcile:
+	qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/
 
 run-report:
 	qsr-audit report --output reports/

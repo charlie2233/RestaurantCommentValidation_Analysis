@@ -28,6 +28,8 @@ data/bronze/*
 data/silver/*
 data/gold/*
 !data/**/.gitkeep
+!data/reference/templates/
+!data/reference/templates/**
 
 # MLflow
 mlruns/

@@ -10,6 +10,7 @@ from rich.console import Console
 
 from qsr_audit.config import get_settings
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
+from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
 from qsr_audit.validate import run_syntheticness as run_syntheticness_pipeline
 from qsr_audit.validate import validate_workbook as validate_workbook_pipeline
 
@@ -40,6 +41,34 @@ ValidationInputOption = Annotated[
         readable=True,
         path_type=Path,
         help="Path to a raw workbook, Silver directory, or Silver parquet file.",
+    ),
+]
+
+CoreMetricsOption = Annotated[
+    Path,
+    typer.Option(
+        ...,
+        "--core",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        path_type=Path,
+        help="Path to the normalized core_brand_metrics parquet file.",
+    ),
+]
+
+ReferenceDirOption = Annotated[
+    Path,
+    typer.Option(
+        ...,
+        "--reference-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        path_type=Path,
+        help="Directory containing manual reference CSV files and templates.",
     ),
 ]
 
@@ -141,6 +170,25 @@ def run_syntheticness_command(
     console.print(f"Unknown / skipped: {counts['unknown']}")
     console.print(f"Report: {run.artifacts.report_markdown}")
     console.print(f"Signals parquet: {run.artifacts.signals_parquet}")
+
+
+@app.command("reconcile")
+def reconcile_command(
+    core_path: CoreMetricsOption,
+    reference_dir: ReferenceDirOption,
+) -> None:
+    """Reconcile normalized core metrics against manual reference data."""
+
+    run = reconcile_core_metrics_pipeline(
+        core_path=core_path,
+        reference_dir=reference_dir,
+        settings=get_settings(),
+    )
+    console.print(f"[bold cyan]Reconciliation complete[/bold cyan] - {core_path}")
+    console.print(f"Warnings: {len(run.warnings)}")
+    console.print(f"Reconciled core metrics: {run.artifacts.reconciled_core_metrics_path}")
+    console.print(f"Provenance registry: {run.artifacts.provenance_registry_path}")
+    console.print(f"Summary: {run.artifacts.reconciliation_summary_path}")
 
 
 @app.command()
