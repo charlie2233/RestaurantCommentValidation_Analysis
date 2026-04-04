@@ -1,0 +1,22 @@
+"""Application settings loaded from environment variables / .env file."""
+
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="QSR_", env_file=".env", extra="ignore")
+
+    data_raw: Path = Path("data/raw")
+    data_bronze: Path = Path("data/bronze")
+    data_silver: Path = Path("data/silver")
+    data_gold: Path = Path("data/gold")
+    data_reference: Path = Path("data/reference")
+
+    reports_dir: Path = Path("reports")
+
+    log_level: str = "INFO"
+
+
+settings = Settings()
