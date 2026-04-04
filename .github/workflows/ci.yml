@@ -2,18 +2,22 @@ name: CI
 
 on:
   push:
-    branches: ["main", "copilot/**"]
+    branches: ["main", "copilot/**", "codex/**"]
   pull_request:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -22,14 +26,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Lint
-        run: |
-          ruff check src tests
-          ruff format --check src tests
+      - name: Repository checks
+        run: pre-commit run --all-files
 
       - name: Test
-        run: pytest --cov=src --cov-report=term-missing
+        run: pytest --cov=src --cov-report=term-missing --cov-fail-under=85
+
+      - name: Packaging smoke test
+        run: python -m build
+
+      - name: CLI help smoke test
+        run: |
+          python -m qsr_audit.cli --help
+          python -m qsr_audit.cli ingest-workbook --help
+          python -m qsr_audit.cli validate-workbook --help
+          python -m qsr_audit.cli run-syntheticness --help
+          python -m qsr_audit.cli reconcile --help
+          python -m qsr_audit.cli report --help
+
+      - name: Repo hygiene audit
+        run: python scripts/check_repo_hygiene.py

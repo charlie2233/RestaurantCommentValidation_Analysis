@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
-from dashboard.app import build_dashboard_json, load_dashboard_artifacts, render_dashboard_html
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.reporting import write_reports
+from typer.testing import CliRunner
+
+from dashboard.app import build_dashboard_json, load_dashboard_artifacts, render_dashboard_html
 
 
 def _build_settings(tmp_path: Path) -> Settings:

@@ -16,7 +16,15 @@ from qsr_audit.strategy import generate_strategy_outputs as generate_strategy_ou
 from qsr_audit.validate import run_syntheticness as run_syntheticness_pipeline
 from qsr_audit.validate import validate_workbook as validate_workbook_pipeline
 
-app = typer.Typer(name="qsr-audit", help="QSR workbook audit pipeline CLI.")
+app = typer.Typer(
+    name="qsr-audit",
+    help=(
+        "QSR workbook audit pipeline CLI for ingesting workbook claims, validating them, "
+        "reconciling Gold outputs, and producing analyst-facing reports."
+    ),
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 console = Console()
 
 InputWorkbookOption = Annotated[
@@ -28,7 +36,7 @@ InputWorkbookOption = Annotated[
         dir_okay=False,
         readable=True,
         path_type=Path,
-        help="Path to the source workbook.",
+        help="Path to the source workbook that should be copied into the raw/Bronze workflow.",
     ),
 ]
 
@@ -42,7 +50,21 @@ ValidationInputOption = Annotated[
         dir_okay=True,
         readable=True,
         path_type=Path,
-        help="Path to a raw workbook, Silver directory, or Silver parquet file.",
+        help="Path to a raw workbook, a Silver directory, or a Silver parquet file.",
+    ),
+]
+
+SyntheticnessInputOption = Annotated[
+    Path,
+    typer.Option(
+        ...,
+        "--input",
+        exists=True,
+        file_okay=True,
+        dir_okay=True,
+        readable=True,
+        path_type=Path,
+        help="Path to a raw workbook, a Silver directory, or core_brand_metrics.parquet.",
     ),
 ]
 
@@ -90,9 +112,13 @@ ReportOutputOption = Annotated[
 def ingest(
     source: str = typer.Argument(..., help="Path to raw workbook or data source."),
 ) -> None:
-    """Ingest raw data into the Bronze layer."""
+    """Legacy placeholder for generic ingest flows. Use `ingest-workbook` for Excel workbooks."""
 
-    console.print(f"[bold green]Ingest[/bold green] - source: {source} (not yet implemented)")
+    console.print(
+        "[bold yellow]Legacy placeholder[/bold yellow] - use "
+        "`qsr-audit ingest-workbook --input <workbook.xlsx>` for workbook inputs. "
+        f"Received source: {source}"
+    )
 
 
 @app.command("ingest-workbook")
@@ -117,9 +143,13 @@ def ingest_workbook_command(
 def validate(
     layer: str = typer.Option("silver", help="Data layer to validate: bronze | silver | gold."),
 ) -> None:
-    """Validate data in the specified layer."""
+    """Legacy placeholder for generic layer validation. Use `validate-workbook` for workbook-derived data."""
 
-    console.print(f"[bold blue]Validate[/bold blue] - layer: {layer} (not yet implemented)")
+    console.print(
+        "[bold yellow]Legacy placeholder[/bold yellow] - use "
+        "`qsr-audit validate-workbook --input <raw workbook|silver path>` for workbook-derived data. "
+        f"Received layer: {layer}"
+    )
 
 
 @app.command("validate-workbook")
@@ -160,7 +190,7 @@ def validate_workbook_command(
 
 @app.command("run-syntheticness")
 def run_syntheticness_command(
-    input_path: ValidationInputOption,
+    input_path: SyntheticnessInputOption,
     include_isolation_forest: bool = typer.Option(
         True,
         "--include-isolation-forest/--skip-isolation-forest",
@@ -208,7 +238,7 @@ def reconcile_command(
 def report(
     output: ReportOutputOption = Path("reports"),
 ) -> None:
-    """Generate audit reports from Gold-layer data."""
+    """Generate Markdown/HTML/JSON audit reports and Gold-derived strategy outputs."""
 
     settings = get_settings()
     artifacts = write_reports_pipeline(output_root=output, settings=settings)

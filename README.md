@@ -81,7 +81,16 @@ make run-ingest
 make run-validate
 make run-reconcile
 make run-report
+make run-full-audit
 ```
+
+## Documentation
+
+- Contributor workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Analyst workflow and interpretation guide: [`docs/analyst-runbook.md`](docs/analyst-runbook.md)
+- Dataset and field definitions: [`docs/data-dictionary.md`](docs/data-dictionary.md)
+- CLI reference: [`docs/cli.md`](docs/cli.md)
+- Local developer workflow: [`docs/local-workflow.md`](docs/local-workflow.md)
 
 ## Manual Reference Inputs
 
@@ -125,8 +134,18 @@ make lint
 # Tests
 make test
 
+# Packaging smoke test
+make build-package
+
+# Repository hygiene check
+make check-hygiene
+
+# Clean ignored artifacts and caches
+make clean-generated
+make clean-caches
+
 # Lint + tests in one shot (CI parity)
-ruff check src tests && pytest --cov=src --cov-report=term-missing
+pre-commit run --all-files && pytest --cov=src --cov-report=term-missing --cov-fail-under=85
 ```
 
 ---

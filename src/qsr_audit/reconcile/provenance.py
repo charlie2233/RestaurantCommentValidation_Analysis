@@ -283,11 +283,11 @@ def _json_safe_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
 def _json_safe(value: Any) -> Any:
     if isinstance(value, Mapping):
         return _json_safe_mapping(value)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, date | datetime):
         return value.isoformat()
     if hasattr(value, "item") and callable(value.item):
         try:

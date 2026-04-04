@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a pipeline defect, contradiction, or broken workflow.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for reproducible defects in ingest, validation, reconciliation, reporting, or strategy output generation.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the defect.
+      placeholder: Validation flags parquet is not written after validate-workbook succeeds.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - ingest
+        - normalize
+        - validate
+        - syntheticness
+        - reconcile
+        - report
+        - strategy
+        - docs
+        - CI / tooling
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands and relevant file paths.
+      placeholder: |
+        1. qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
+        2. qsr-audit validate-workbook --input data/silver
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Relevant artifacts or logs
+      description: Reference report paths, parquet names, validation messages, or screenshots if relevant.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, OS, and branch or commit if known.
+      placeholder: macOS 14, Python 3.12, branch codex/...

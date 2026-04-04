@@ -23,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build",
     "pytest",
     "pytest-cov",
     "ruff",
@@ -49,3 +50,7 @@ addopts = "--tb=short"
 
 [tool.coverage.run]
 source = ["src"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true

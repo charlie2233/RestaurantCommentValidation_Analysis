@@ -1,0 +1,46 @@
+name: Research or dataset change request
+description: Request new schema coverage, reference ingestion, analyst checks, or documentation work.
+title: "[Research] "
+labels:
+  - research
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new workbook support, reference source onboarding, validation rules, or analyst/reporting improvements.
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+      description: What decision, question, or workflow should this change support?
+      placeholder: Add support for a new workbook variant with a modified AI strategy sheet.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Requested scope
+      description: Be explicit about datasets, layers, CLI commands, or reports affected.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define what “done” means.
+      placeholder: |
+        - Bronze and Silver outputs are produced
+        - Validation catches new range formatting
+        - README and data dictionary are updated
+    validations:
+      required: true
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Provenance or source considerations
+      description: Note whether the source is manual, paid, unstable, or should remain analyst-entered.
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and caveats
+      description: Call out assumptions, non-goals, or risks.

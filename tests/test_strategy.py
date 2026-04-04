@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-
 from qsr_audit.config import Settings
 from qsr_audit.strategy import (
     generate_strategy_outputs,

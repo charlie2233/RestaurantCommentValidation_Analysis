@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.ingest import (
@@ -17,6 +15,7 @@ from qsr_audit.ingest import (
     parse_fte_range,
     parse_margin_range,
 )
+from typer.testing import CliRunner
 
 
 def _write_fixture_workbook(path: Path) -> None:
@@ -113,6 +112,20 @@ def test_load_workbook_sheets(tmp_path: Path) -> None:
     assert len(sheets["QSR Top30 核心数据"]) == 2
     assert len(sheets["AI策略与落地效果"]) == 1
     assert len(sheets["数据说明与来源"]) == 8
+
+
+def test_load_workbook_sheets_raises_when_required_sheet_is_missing(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "missing_sheet.xlsx"
+    with pd.ExcelWriter(workbook_path, engine="openpyxl") as writer:
+        pd.DataFrame([{"排名": 1, "品牌": "Test"}]).to_excel(
+            writer, sheet_name="QSR Top30 核心数据", index=False
+        )
+        pd.DataFrame([{"品牌": "Test"}]).to_excel(
+            writer, sheet_name="AI策略与落地效果", index=False
+        )
+
+    with pytest.raises(ValueError, match="Workbook is missing required sheets"):
+        load_workbook_sheets(workbook_path)
 
 
 def test_canonicalize_brand_name() -> None:

@@ -335,7 +335,7 @@ def build_reconciled_core_metrics(
             build_provenance_record(
                 source_type="workbook",
                 source_name=core_source_path.name,
-                source_url_or_doc_id=str(core_source_path),
+                source_url_or_doc_id=_safe_artifact_reference(core_source_path),
                 method_reported_or_estimated="reported_in_workbook",
                 confidence_score=0.35,
                 notes="Workbook is treated as a hypothesis artifact rather than a source of truth.",
@@ -363,7 +363,7 @@ def reference_provenance_records(
                 source_type=str(row.get("source_type") or load_path.stem),
                 source_name=str(row.get("source_name") or load_path.stem),
                 source_url_or_doc_id=_clean_optional_text(row.get("source_url_or_doc_id"))
-                or str(load_path),
+                or _safe_artifact_reference(load_path),
                 as_of_date=row.get("as_of_date"),
                 method_reported_or_estimated=str(
                     row.get("method_reported_or_estimated") or "reported"
@@ -536,6 +536,13 @@ def _clean_optional_text(value: object) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _safe_artifact_reference(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return path.name
 
 
 def _to_float(value: object) -> float | None:

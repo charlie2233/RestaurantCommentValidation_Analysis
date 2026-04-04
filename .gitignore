@@ -4,12 +4,14 @@ __pycache__/
 *.pyo
 .mypy_cache/
 .ruff_cache/
+.DS_Store
 
 # Testing
 .pytest_cache/
 htmlcov/
 .coverage
 coverage.xml
+.coverage.*
 
 # Build / packaging
 *.egg-info/
@@ -20,6 +22,10 @@ build/
 # Environment
 .env
 .env.*
+.venv/
+.venv-*/
+.python-version
+*.log
 
 # Data layers and local reference data (keep .gitkeep)
 data/raw/*

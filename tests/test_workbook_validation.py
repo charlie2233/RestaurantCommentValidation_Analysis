@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.ingest import ingest_workbook
 from qsr_audit.validate import validate_workbook
+from typer.testing import CliRunner
 
 
 def _build_settings(tmp_path: Path) -> Settings:
@@ -224,6 +223,39 @@ def test_cli_validate_workbook_writes_outputs(
 
     assert result.exit_code == 0
     assert "Validation passed" in result.stdout
+    assert (settings.reports_dir / "validation" / "validation_summary.md").exists()
+    assert (settings.reports_dir / "validation" / "validation_results.json").exists()
+    assert (settings.data_gold / "validation_flags.parquet").exists()
+
+
+def test_cli_validate_workbook_failure_still_writes_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = _build_settings(tmp_path)
+    workbook_path = settings.data_raw / "fixture.xlsx"
+    _write_validation_fixture_workbook(workbook_path)
+
+    ingest_workbook(workbook_path, settings)
+    core_path = settings.data_silver / "core_brand_metrics.parquet"
+    core_metrics = pd.read_parquet(core_path)
+    core_metrics.loc[0, "average_unit_volume_usd_thousands"] = 1.0
+    core_metrics.to_parquet(core_path, index=False)
+
+    monkeypatch.setenv("QSR_DATA_RAW", str(settings.data_raw))
+    monkeypatch.setenv("QSR_DATA_BRONZE", str(settings.data_bronze))
+    monkeypatch.setenv("QSR_DATA_SILVER", str(settings.data_silver))
+    monkeypatch.setenv("QSR_DATA_GOLD", str(settings.data_gold))
+    monkeypatch.setenv("QSR_DATA_REFERENCE", str(settings.data_reference))
+    monkeypatch.setenv("QSR_REPORTS_DIR", str(settings.reports_dir))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["validate-workbook", "--input", str(settings.data_silver), "--tolerance-auv", "0.05"],
+    )
+
+    assert result.exit_code == 1
+    assert "Validation failed" in result.stdout
     assert (settings.reports_dir / "validation" / "validation_summary.md").exists()
     assert (settings.reports_dir / "validation" / "validation_results.json").exists()
     assert (settings.data_gold / "validation_flags.parquet").exists()
