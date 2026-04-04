@@ -11,6 +11,7 @@ from rich.console import Console
 from qsr_audit.config import get_settings
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
+from qsr_audit.reporting import write_reports as write_reports_pipeline
 from qsr_audit.validate import run_syntheticness as run_syntheticness_pipeline
 from qsr_audit.validate import validate_workbook as validate_workbook_pipeline
 
@@ -69,6 +70,17 @@ ReferenceDirOption = Annotated[
         readable=True,
         path_type=Path,
         help="Directory containing manual reference CSV files and templates.",
+    ),
+]
+
+ReportOutputOption = Annotated[
+    Path,
+    typer.Option(
+        "--output",
+        file_okay=False,
+        dir_okay=True,
+        path_type=Path,
+        help="Directory where analyst-facing reports should be written.",
     ),
 ]
 
@@ -193,11 +205,16 @@ def reconcile_command(
 
 @app.command()
 def report(
-    output: str = typer.Option("reports/", help="Output directory for generated reports."),
+    output: ReportOutputOption = Path("reports"),
 ) -> None:
     """Generate audit reports from Gold-layer data."""
 
-    console.print(f"[bold yellow]Report[/bold yellow] - output: {output} (not yet implemented)")
+    artifacts = write_reports_pipeline(output_root=output, settings=get_settings())
+    console.print(f"[bold yellow]Analyst reports generated[/bold yellow] - {output}")
+    console.print(f"Global markdown: {artifacts.global_markdown}")
+    console.print(f"Global HTML: {artifacts.global_html}")
+    console.print(f"Global JSON: {artifacts.global_json}")
+    console.print(f"Brand markdown files: {len(artifacts.brand_markdown_paths)}")
 
 
 if __name__ == "__main__":

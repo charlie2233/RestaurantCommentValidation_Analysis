@@ -23,6 +23,8 @@ DEFAULT_PORT = 8501
 class DashboardArtifacts:
     """Local artifacts used to render the dashboard."""
 
+    generated_report_json: dict[str, Any] | None
+    generated_report_html: str | None
     validation_results: dict[str, Any] | None
     validation_summary_markdown: str | None
     reconciliation_summary_markdown: str | None
@@ -34,6 +36,8 @@ class DashboardArtifacts:
 def load_dashboard_artifacts(reports_dir: Path = DEFAULT_REPORTS_DIR) -> DashboardArtifacts:
     """Load local report artifacts and Gold parquet outputs."""
 
+    generated_report_json = _read_json(reports_dir / "index.json")
+    generated_report_html = _read_text(reports_dir / "index.html")
     validation_results = _read_json(reports_dir / "validation" / "validation_results.json")
     validation_summary = _read_text(reports_dir / "validation" / "validation_summary.md")
     reconciliation_summary = _read_text(
@@ -44,6 +48,8 @@ def load_dashboard_artifacts(reports_dir: Path = DEFAULT_REPORTS_DIR) -> Dashboa
     provenance_registry = _read_parquet(Path("data/gold/provenance_registry.parquet"))
 
     return DashboardArtifacts(
+        generated_report_json=generated_report_json,
+        generated_report_html=generated_report_html,
         validation_results=validation_results,
         validation_summary_markdown=validation_summary,
         reconciliation_summary_markdown=reconciliation_summary,
@@ -55,6 +61,9 @@ def load_dashboard_artifacts(reports_dir: Path = DEFAULT_REPORTS_DIR) -> Dashboa
 
 def render_dashboard_html(artifacts: DashboardArtifacts) -> str:
     """Render a single read-only HTML page from local artifacts."""
+
+    if artifacts.generated_report_html:
+        return artifacts.generated_report_html
 
     validation = artifacts.validation_results or {}
     counts = validation.get("counts", {})
@@ -280,6 +289,9 @@ def render_dashboard_html(artifacts: DashboardArtifacts) -> str:
 def build_dashboard_json(artifacts: DashboardArtifacts) -> dict[str, Any]:
     """Return a machine-readable snapshot for the dashboard."""
 
+    if artifacts.generated_report_json:
+        return artifacts.generated_report_json
+
     validation = artifacts.validation_results or {}
     findings = validation.get("findings", [])
     return {
@@ -359,7 +371,9 @@ def _brand_scorecards(artifacts: DashboardArtifacts) -> list[dict[str, Any]]:
     if not _has_frame(frame):
         return []
 
-    validation_findings = artifacts.validation_results.get("findings", []) if artifacts.validation_results else []
+    validation_findings = (
+        artifacts.validation_results.get("findings", []) if artifacts.validation_results else []
+    )
     scorecards = []
     for row in frame.to_dict(orient="records"):
         brand_name = row.get("brand_name")
@@ -432,6 +446,7 @@ def _render_brand_scorecards(artifacts: DashboardArtifacts) -> str:
 
     blocks = []
     for scorecard in scorecards[:30]:
+        open_issues_text = "\n".join(scorecard["open_issues"]) or "None"
         blocks.append(
             f"""
 <details>
@@ -455,7 +470,7 @@ def _render_brand_scorecards(artifacts: DashboardArtifacts) -> str:
     </div>
     <div class="card">
       <h3>Open Issues</h3>
-      <pre>{_escape_pre("\\n".join(scorecard["open_issues"]) or "None")}</pre>
+      <pre>{_escape_pre(open_issues_text)}</pre>
     </div>
   </div>
 </details>
@@ -553,7 +568,9 @@ def _render_simple_list(items: list[str], *, empty_message: str) -> str:
 def _preview_dataframe(frame: pd.DataFrame | None, max_rows: int = 8) -> str:
     if not _has_frame(frame):
         if pd is None:
-            return "Parquet preview unavailable in this environment because pandas is not installed."
+            return (
+                "Parquet preview unavailable in this environment because pandas is not installed."
+            )
         return "No local Gold parquet found."
     preview = frame.head(max_rows).copy()
     return preview.to_string(index=False)
