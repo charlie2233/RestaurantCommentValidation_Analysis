@@ -1,0 +1,3 @@
+# MLflow configuration stub.
+tracking_uri: "mlruns"
+experiment_name: "qsr-audit"

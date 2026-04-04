@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qsr-audit"
+version = "0.1.0"
+description = "QSR workbook audit pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "openpyxl",
+    "pyarrow",
+    "pandera",
+    "pydantic",
+    "pydantic-settings",
+    "scipy",
+    "scikit-learn",
+    "typer",
+    "rich",
+    "jinja2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "pre-commit",
+]
+
+[project.scripts]
+qsr-audit = "qsr_audit.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qsr_audit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short"
+
+[tool.coverage.run]
+source = ["src"]
