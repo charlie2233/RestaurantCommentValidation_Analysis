@@ -6,8 +6,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 import pandas as pd
-from pandera import Check, Column, DataFrameSchema
 from pandera.errors import SchemaErrors
+from pandera.pandas import Check, Column, DataFrameSchema
 
 from qsr_audit.contracts.workbook import (
     AI_STRATEGY_SHEET,
@@ -190,6 +190,9 @@ def build_schema_bundle() -> SchemaBundle:
     )
 
 
+SCHEMAS = build_schema_bundle()
+
+
 def validate_schema(
     table_name: str,
     frame: pd.DataFrame,
@@ -309,3 +312,12 @@ def _sheet_name_for_table(table_name: str) -> str:
         "data_notes": DATA_NOTES_SHEET,
         "key_findings": DATA_NOTES_SHEET,
     }[table_name]
+
+
+__all__ = [
+    "SCHEMA_TYPE_CATEGORY",
+    "SCHEMAS",
+    "SchemaBundle",
+    "build_schema_bundle",
+    "validate_schema",
+]
