@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
+from typer.testing import CliRunner
 
 
 @pytest.mark.parametrize(

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from qsr_audit.cli import app
 from typer.testing import CliRunner
 
-from qsr_audit.cli import app
 from tests.helpers import build_settings, write_sample_reference_csv, write_sample_workbook
 
 

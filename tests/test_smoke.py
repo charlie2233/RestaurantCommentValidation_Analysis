@@ -17,6 +17,7 @@ def test_subpackages_importable():
         "reconcile",
         "reporting",
         "strategy",
+        "models",
     ]:
         mod = importlib.import_module(f"qsr_audit.{sub}")
         assert mod is not None

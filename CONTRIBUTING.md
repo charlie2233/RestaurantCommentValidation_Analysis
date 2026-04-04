@@ -71,6 +71,8 @@ Every PR should pass:
 - Strategy code must consume Gold validated and reconciled outputs only.
 - Do not add speculative ROI claims without explicit provenance support.
 - If a new field changes business meaning, update `docs/data-dictionary.md` and the analyst runbook.
+- Research-only model helpers may read local Silver or Gold snapshots for offline evaluation, but they must not change source-of-truth metrics or gate the supported CLI flow.
+- Do not wire `src/qsr_audit/models/` into validation, reconciliation, reporting, or strategy without a separate hardening proposal.
 
 ## Pull requests
 

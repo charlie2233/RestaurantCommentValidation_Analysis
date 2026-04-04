@@ -48,6 +48,23 @@ make clean-generated
 make clean-caches
 ```
 
+## Optional offline experimentation loop
+
+Research-only model work should stay separate from the supported pipeline:
+
+```bash
+python - <<'PY'
+from qsr_audit.models import get_embedding_candidates
+
+for candidate in get_embedding_candidates():
+    print(candidate.repo_id, "->", candidate.preferred_role)
+PY
+```
+
+Use the experiment docs in `docs/model_candidates.md`,
+`docs/forecasting_experiments.md`, and `docs/rag_experiments.md` as the source
+of truth for research scope and guardrails.
+
 ## Commit policy reminders
 
 - Do not commit raw workbook files or local reference data.

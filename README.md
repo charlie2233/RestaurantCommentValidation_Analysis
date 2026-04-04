@@ -91,6 +91,9 @@ make run-full-audit
 - Dataset and field definitions: [`docs/data-dictionary.md`](docs/data-dictionary.md)
 - CLI reference: [`docs/cli.md`](docs/cli.md)
 - Local developer workflow: [`docs/local-workflow.md`](docs/local-workflow.md)
+- Research model candidates: [`docs/model_candidates.md`](docs/model_candidates.md)
+- Forecasting experiment plan: [`docs/forecasting_experiments.md`](docs/forecasting_experiments.md)
+- Lightweight RAG experiment plan: [`docs/rag_experiments.md`](docs/rag_experiments.md)
 
 ## Manual Reference Inputs
 
@@ -185,7 +188,8 @@ qsr-audit-pipeline/
 │   ├── validate/
 │   ├── reconcile/
 │   ├── reporting/
-│   └── strategy/
+│   ├── strategy/
+│   └── models/        # Research-only model metadata and offline stubs
 ├── tests/
 ├── dashboard/         # Dashboard stub
 ├── dvc/               # DVC pipeline stub
