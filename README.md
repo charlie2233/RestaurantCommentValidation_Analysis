@@ -64,7 +64,10 @@ qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
 # 3. Validate the Silver layer
 qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 
-# 4. Generate reports
+# 4. Run syntheticness diagnostics on normalized core metrics
+qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
+
+# 5. Generate reports
 qsr-audit report --output reports/
 ```
 

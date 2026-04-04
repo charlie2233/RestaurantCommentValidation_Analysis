@@ -10,6 +10,7 @@ from rich.console import Console
 
 from qsr_audit.config import get_settings
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
+from qsr_audit.validate import run_syntheticness as run_syntheticness_pipeline
 from qsr_audit.validate import validate_workbook as validate_workbook_pipeline
 
 app = typer.Typer(name="qsr-audit", help="QSR workbook audit pipeline CLI.")
@@ -113,6 +114,33 @@ def validate_workbook_command(
 
     if not run.passed:
         raise typer.Exit(code=1)
+
+
+@app.command("run-syntheticness")
+def run_syntheticness_command(
+    input_path: ValidationInputOption,
+    include_isolation_forest: bool = typer.Option(
+        True,
+        "--include-isolation-forest/--skip-isolation-forest",
+        help="Whether to run the optional Isolation Forest multivariate model.",
+    ),
+) -> None:
+    """Run syntheticness diagnostics on normalized core brand metrics."""
+
+    run = run_syntheticness_pipeline(
+        input_path=input_path,
+        settings=get_settings(),
+        include_isolation_forest=include_isolation_forest,
+    )
+    counts = run.counts
+
+    console.print(f"[bold magenta]Syntheticness analysis complete[/bold magenta] - {input_path}")
+    console.print(f"Strong signals: {counts['strong']}")
+    console.print(f"Moderate signals: {counts['moderate']}")
+    console.print(f"Weak signals: {counts['weak']}")
+    console.print(f"Unknown / skipped: {counts['unknown']}")
+    console.print(f"Report: {run.artifacts.report_markdown}")
+    console.print(f"Signals parquet: {run.artifacts.signals_parquet}")
 
 
 @app.command()
