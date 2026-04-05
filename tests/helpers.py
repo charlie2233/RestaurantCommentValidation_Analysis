@@ -16,6 +16,7 @@ def build_settings(tmp_path: Path) -> Settings:
     reference_dir = tmp_path / "reference"
     reports_dir = tmp_path / "reports"
     strategy_dir = tmp_path / "strategy"
+    artifacts_dir = tmp_path / "artifacts"
     for directory in [
         raw_dir,
         bronze_dir,
@@ -24,6 +25,7 @@ def build_settings(tmp_path: Path) -> Settings:
         reference_dir,
         reports_dir,
         strategy_dir,
+        artifacts_dir,
     ]:
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -33,8 +35,10 @@ def build_settings(tmp_path: Path) -> Settings:
         data_silver=silver_dir,
         data_gold=gold_dir,
         data_reference=reference_dir,
+        gold_history_dir=gold_dir / "history",
         reports_dir=reports_dir,
         strategy_dir=strategy_dir,
+        artifacts_dir=artifacts_dir,
     )
 
 

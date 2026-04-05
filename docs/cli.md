@@ -56,6 +56,50 @@
   - `reports/audit/gold_publish_scorecard.md`
   - `reports/audit/gold_publish_scorecard.json`
 
+### `qsr-audit snapshot-gold --as-of-date YYYY-MM-DD`
+
+- Purpose: retain a dated, forecast-ready snapshot of current Gold publish decisions and the safe KPI subset.
+- Default behavior:
+  - snapshots `publishable` rows only
+  - keeps `advisory` rows out unless `--include-advisory` is passed
+  - never includes `blocked` rows
+- Primary outputs:
+  - `data/gold/history/as_of_date=YYYY-MM-DD/forecast_snapshot.parquet`
+  - `data/gold/history/as_of_date=YYYY-MM-DD/gold_publish_decisions.parquet`
+  - `data/gold/history/as_of_date=YYYY-MM-DD/publishable_kpis.parquet`
+  - `data/gold/history/as_of_date=YYYY-MM-DD/manifest.json`
+  - `data/gold/history/snapshot_manifest.parquet`
+
+### `qsr-audit build-forecast-panel --metric <metric_name>`
+
+- Purpose: assemble a longitudinal panel from dated Gold snapshots for one target metric.
+- Guardrails:
+  - fails clearly when history is too short unless `--allow-short-history` is passed
+  - excludes `blocked` rows by default
+  - keeps outputs out of `reports/` and `strategy/`
+- Primary outputs:
+  - `artifacts/forecasting/<metric>/panel.parquet`
+  - `artifacts/forecasting/<metric>/panel_metadata.json`
+  - `artifacts/forecasting/<metric>/panel_summary.md`
+
+### `qsr-audit forecast-baseline --metric <metric_name>`
+
+- Purpose: run leakage-safe offline baselines on a forecast panel.
+- Evaluation semantics:
+  - multi-step holdouts use a fixed-origin training window, so later holdout actuals never feed earlier predictions back into baseline history
+  - seasonal naive runs only when the snapshot dates form a regular calendar cadence such as weekly, month-end, or quarter-end
+- Baselines:
+  - naive last-value
+  - seasonal naive when cadence and `--season-length` support it
+  - rolling average
+  - exponential smoothing
+- Primary outputs:
+  - `artifacts/forecasting/<metric>/panel.parquet`
+  - `artifacts/forecasting/<metric>/split_metadata.json`
+  - `artifacts/forecasting/<metric>/baseline_metrics.json`
+  - `artifacts/forecasting/<metric>/baseline_metrics.csv`
+  - `artifacts/forecasting/<metric>/baseline_summary.md`
+
 ### `qsr-audit report --output reports/`
 
 - Purpose: build analyst-facing scorecards and downstream Gold-only strategy outputs.
@@ -80,9 +124,20 @@ qsr-audit gate-gold
 qsr-audit report --output reports/
 ```
 
+## Forecast experiment example
+
+```bash
+qsr-audit snapshot-gold --as-of-date 2025-01-31
+qsr-audit snapshot-gold --as-of-date 2025-02-28
+qsr-audit snapshot-gold --as-of-date 2025-03-31
+qsr-audit build-forecast-panel --metric system_sales
+qsr-audit forecast-baseline --metric system_sales
+```
+
 ## Notes
 
 - The legacy `ingest` and `validate` commands are placeholders. Use `ingest-workbook` and `validate-workbook`.
 - Reference CSVs are manual-first templates. Leave unknowns blank, preserve provenance fields, mark values as `reported` or `estimated`, and do not infer missing data.
 - `gate-gold` is the export decision layer. Advisory rows are not publishable, and blocked rows should be treated as unsafe for external use.
 - Strategy is downstream-only. It must consume Gold outputs and must not redefine business truth on its own.
+- Forecasting commands are experimental and offline-only. Their outputs are not audited facts and must not be surfaced as analyst-facing reports in this scaffold.

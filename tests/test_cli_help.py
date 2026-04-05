@@ -22,6 +22,9 @@ from typer.testing import CliRunner
                 "reconcile",
                 "audit-reference",
                 "gate-gold",
+                "snapshot-gold",
+                "build-forecast-panel",
+                "forecast-baseline",
                 "report",
             ],
         ),
@@ -59,6 +62,30 @@ from typer.testing import CliRunner
                 "Gold publishing gates",
                 "KPI export decisions",
                 "audit scorecard",
+            ],
+        ),
+        (
+            ["snapshot-gold", "--help"],
+            [
+                "dated history",
+                "future forecasting",
+                "Include advisory rows",
+            ],
+        ),
+        (
+            ["build-forecast-panel", "--help"],
+            [
+                "forecast-ready longitudinal panel",
+                "artifacts/forecasting",
+                "allow-short-history",
+            ],
+        ),
+        (
+            ["forecast-baseline", "--help"],
+            [
+                "offline forecast baselines",
+                "holdout periods",
+                "seasonal naive",
             ],
         ),
         (

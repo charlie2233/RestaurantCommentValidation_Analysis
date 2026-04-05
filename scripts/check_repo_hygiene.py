@@ -26,6 +26,7 @@ FORBIDDEN_PREFIXES = (
     "data/reference/",
     "reports/",
     "strategy/",
+    "artifacts/",
 )
 
 

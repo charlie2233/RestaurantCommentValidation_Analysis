@@ -16,6 +16,7 @@ def test_subpackages_importable():
         "validate",
         "reconcile",
         "gold",
+        "forecasting",
         "reporting",
         "strategy",
         "models",

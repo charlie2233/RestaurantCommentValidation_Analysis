@@ -62,6 +62,28 @@ qsr-audit report --output reports/
 - Generates executive-facing scorecards and brand-level debugging outputs in Markdown, HTML, and JSON.
 - Also produces strategy recommendations as a downstream Gold consumer.
 
+## Forecast-readiness workflow
+
+Forecasting remains experimental in this repo. Use it only after Gold gating and
+only as an offline research path.
+
+```bash
+qsr-audit snapshot-gold --as-of-date 2025-01-31
+qsr-audit snapshot-gold --as-of-date 2025-02-28
+qsr-audit snapshot-gold --as-of-date 2025-03-31
+qsr-audit build-forecast-panel --metric system_sales
+qsr-audit forecast-baseline --metric system_sales
+```
+
+Rules:
+
+- Snapshot after Gold gating, not before.
+- Default to `publishable` rows only.
+- Include `advisory` rows only as an explicit experimental choice.
+- Never treat forecast outputs as audited facts.
+- Forecast artifacts belong under `artifacts/forecasting/`, not `reports/` or
+  `strategy/`.
+
 ## How to read the outputs
 
 ### Validation outputs
@@ -84,6 +106,14 @@ qsr-audit report --output reports/
 - If a metric is `advisory`, it stays out of published exports even when the value looks plausible.
 - Missing provenance, unresolved AUV contradictions, and weak or contradictory reconciliation evidence are the main reasons external metrics get blocked.
 
+### Forecast-readiness outputs
+
+- `data/gold/history/` stores repeated-period Gold snapshots for future model evaluation.
+- `artifacts/forecasting/<metric>/panel.parquet` is a research-only longitudinal panel assembled from those snapshots.
+- `artifacts/forecasting/<metric>/baseline_summary.md` is an offline baseline evaluation summary, not an analyst-facing report.
+- Forecast panels should default to rows that were `publishable` at snapshot time.
+- `advisory` rows remain excluded by default and should not be mixed into facts silently.
+
 ### Syntheticness outputs
 
 - Benford can be skipped or caveated for small or bounded samples.
@@ -105,6 +135,7 @@ qsr-audit report --output reports/
 4. Read `reports/audit/gold_publish_scorecard.md`.
 5. Open specific `reports/brands/*.md` files for brand-level debugging.
 6. Read `reports/strategy/strategy_playbook.md` only after the earlier steps.
+7. Use forecast experiment artifacts only for offline method comparison, never as proof of future business performance.
 
 ## Escalation guidance
 
