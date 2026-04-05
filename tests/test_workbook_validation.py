@@ -160,6 +160,11 @@ def test_validate_workbook_detects_failing_invariants(tmp_path: Path) -> None:
     assert "core_brand_metrics.brand_unique" in error_checks
     assert "implied_auv_k" in error_checks
     assert "fte_range_order" in error_checks
+    implied_auv_messages = [
+        finding.message for finding in run.findings if finding.check_name == "implied_auv_k"
+    ]
+    assert any("tolerance 5%" in message for message in implied_auv_messages)
+    assert any("implied AUV" in message for message in implied_auv_messages)
 
 
 def test_validate_workbook_surfaces_schema_null_and_range_failures(tmp_path: Path) -> None:
@@ -198,7 +203,17 @@ def test_validate_workbook_warns_for_extra_ai_brand_from_raw_workbook(tmp_path: 
     warning_findings = [finding for finding in run.findings if finding.severity == "warning"]
     assert len(warning_findings) == 1
     assert warning_findings[0].check_name == "brand_alignment.extra_ai_brands"
-    assert "Sweetgreen" in warning_findings[0].message
+    assert warning_findings[0].message == (
+        "AI strategy sheet includes brands that are not present in the Top 30 core table: "
+        "Sweetgreen"
+    )
+    coverage_findings = [
+        finding for finding in run.findings if finding.check_name == "brand_alignment.coverage"
+    ]
+    assert len(coverage_findings) == 1
+    assert (
+        coverage_findings[0].message == "AI sheet covers 2 of 2 core brands (0 missing; 1 extra)."
+    )
 
 
 def test_cli_validate_workbook_writes_outputs(

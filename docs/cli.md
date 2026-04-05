@@ -31,11 +31,20 @@
 
 ### `qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/`
 
-- Purpose: join normalized Silver core metrics to manual reference inputs and emit Gold reconciliation outputs with provenance.
+- Purpose: join normalized Silver core metrics to manual reference inputs and emit Gold reconciliation outputs with provenance and coverage audit artifacts.
 - Primary outputs:
   - `data/gold/reconciled_core_metrics.parquet`
   - `data/gold/provenance_registry.parquet`
   - `reports/reconciliation/reconciliation_summary.md`
+  - `data/gold/reference_coverage.parquet`
+  - `reports/reference/reference_coverage.md`
+
+### `qsr-audit audit-reference --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/`
+
+- Purpose: validate manual reference CSVs, audit coverage against the core brands, and emit the coverage artifacts without writing reconciliation outputs.
+- Primary outputs:
+  - `data/gold/reference_coverage.parquet`
+  - `reports/reference/reference_coverage.md`
 
 ### `qsr-audit report --output reports/`
 
@@ -63,4 +72,5 @@ qsr-audit report --output reports/
 ## Notes
 
 - The legacy `ingest` and `validate` commands are placeholders. Use `ingest-workbook` and `validate-workbook`.
+- Reference CSVs are manual-first templates. Leave unknowns blank, preserve provenance fields, mark values as `reported` or `estimated`, and do not infer missing data.
 - Strategy is downstream-only. It must consume Gold outputs and must not redefine business truth on its own.

@@ -64,6 +64,8 @@ def test_cli_end_to_end_workflow(tmp_path, monkeypatch: pytest.MonkeyPatch) -> N
     assert (settings.data_gold / "validation_flags.parquet").exists()
     assert (settings.data_gold / "syntheticness_signals.parquet").exists()
     assert (settings.data_gold / "reconciled_core_metrics.parquet").exists()
+    assert (settings.data_gold / "reference_coverage.parquet").exists()
     assert (settings.reports_dir / "index.md").exists()
+    assert (settings.reports_dir / "reference" / "reference_coverage.md").exists()
     assert (settings.reports_dir / "strategy" / "strategy_playbook.md").exists()
     assert (settings.strategy_dir / "recommendations.parquet").exists()

@@ -43,6 +43,10 @@ qsr-audit report --output reports/
 - Compares workbook claims to manual reference templates.
 - Missing coverage should be treated as missing evidence, not confirmation.
 - Field-level credibility grades matter more than a single rollup grade.
+  - `qsr-audit audit-reference --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/` is available when you only want to inspect manual reference coverage.
+  - Fill reference CSVs manually: leave unknown values blank, preserve the original source in the provenance columns, mark `method_reported_or_estimated` as `reported` or `estimated`, and do not infer missing values.
+  - If a field is unknown, leave it blank instead of inventing a placeholder value.
+  - Partial CSV rows are acceptable only when the missing cells are genuinely unknown. Empty coverage is explicit and should not be read as confirmation.
 
 ### 5. Report
 

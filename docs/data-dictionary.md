@@ -61,6 +61,13 @@ Extracted free-text findings from the notes sheet.
 
 ## Gold datasets
 
+### Manual reference CSV guidance
+
+- Leave unknown values blank.
+- Preserve original provenance in `source_name`, `source_url_or_doc_id`, and `as_of_date`.
+- Mark `method_reported_or_estimated` as `reported` or `estimated` whenever possible.
+- Do not infer or backfill missing values just to make a row look complete.
+
 ### `data/gold/validation_flags.parquet`
 
 Structured validation findings across schema checks, invariants, and cross-sheet consistency.
@@ -99,12 +106,34 @@ Core brand metrics enriched with entity resolution, reconciliation, and credibil
 | `canonical_brand_name` | Resolved canonical brand name after entity matching |
 | `brand_match_confidence`, `brand_match_method` | Entity resolution result |
 | `reference_source_count`, `reference_source_names` | Count and names of matched reference sources |
+| `covered_metrics_count`, `missing_metrics` | How many core reconciliation fields have reference coverage, and which fields are still missing it |
+| `provenance_completeness_score`, `provenance_completeness_summary`, `provenance_confidence_summary` | Coverage score plus compact human-readable summaries of coverage and confidence for the matched reference set |
 | `*_reference_value` | Matched reference value for rank, stores, sales, or AUV |
 | `*_absolute_error`, `*_relative_error` | Reconciliation deltas against reference values |
 | `*_credibility_grade` | Field-level credibility grade |
 | `*_reference_source_name`, `*_reference_source_type`, `*_reference_confidence_score` | Field-level provenance |
 | `overall_credibility_grade` | Rollup credibility assessment |
 | `reconciliation_warning` | Explicit missing coverage or conflict warning text |
+
+### `data/gold/reference_coverage.parquet`
+
+Reference intake coverage audit across brand, metric, and source-type views.
+
+| Field | Meaning |
+|---|---|
+| `coverage_kind` | `brand`, `metric`, or `source_type` |
+| `brand_name`, `canonical_brand_name` | Brand identifiers for brand-level coverage rows |
+| `metric_name` | Metric name for metric-level coverage rows |
+| `source_type` | Source type for source-type coverage rows |
+| `reference_row_count`, `reference_source_count` | Number of matched reference rows and distinct reference sources backing the coverage row |
+| `covered_metrics_count`, `covered_brand_count`, `missing_brand_count` | Coverage rollups by metric and brand |
+| `coverage_rate` | Coverage ratio for the row dimension |
+| `missing_metrics` | Metric list still missing for a brand-level row |
+| `source_type_names` | Distinct source types backing the coverage row |
+| `provenance_completeness_score` | Normalized completeness score for the contributing rows |
+| `provenance_completeness_summary`, `provenance_confidence_summary` | Human-readable coverage and confidence summaries |
+| `warning` | Explicit missing-coverage or data-quality warning text |
+| `details` | JSON metadata such as matched source names, source types, or missing-brand lists |
 
 ### `data/gold/provenance_registry.parquet`
 

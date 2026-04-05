@@ -10,6 +10,7 @@ from rich.console import Console
 
 from qsr_audit.config import get_settings
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
+from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
 from qsr_audit.reporting import write_reports as write_reports_pipeline
 from qsr_audit.strategy import generate_strategy_outputs as generate_strategy_outputs_pipeline
@@ -220,7 +221,7 @@ def reconcile_command(
     core_path: CoreMetricsOption,
     reference_dir: ReferenceDirOption,
 ) -> None:
-    """Reconcile normalized core metrics against manual reference data."""
+    """Reconcile normalized core metrics and emit reference coverage artifacts."""
 
     run = reconcile_core_metrics_pipeline(
         core_path=core_path,
@@ -232,6 +233,26 @@ def reconcile_command(
     console.print(f"Reconciled core metrics: {run.artifacts.reconciled_core_metrics_path}")
     console.print(f"Provenance registry: {run.artifacts.provenance_registry_path}")
     console.print(f"Summary: {run.artifacts.reconciliation_summary_path}")
+    console.print(f"Reference coverage parquet: {run.artifacts.reference_coverage_parquet_path}")
+    console.print(f"Reference coverage markdown: {run.artifacts.reference_coverage_markdown_path}")
+
+
+@app.command("audit-reference")
+def audit_reference_command(
+    core_path: CoreMetricsOption,
+    reference_dir: ReferenceDirOption,
+) -> None:
+    """Audit manual reference coverage and emit Gold/report coverage artifacts."""
+
+    run = audit_reference_coverage_pipeline(
+        core_path=core_path,
+        reference_dir=reference_dir,
+        settings=get_settings(),
+    )
+    console.print(f"[bold cyan]Reference coverage audit complete[/bold cyan] - {core_path}")
+    console.print(f"Warnings: {len(run.warnings)}")
+    console.print(f"Coverage parquet: {run.artifacts.coverage_parquet_path}")
+    console.print(f"Coverage markdown: {run.artifacts.coverage_markdown_path}")
 
 
 @app.command()
