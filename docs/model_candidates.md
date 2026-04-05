@@ -74,12 +74,17 @@ Optional rerankers:
 
 Suggested lightweight stack shapes:
 
-1. In-process embeddings via `sentence-transformers` plus a simple local vector
-   index for notebook-scale experiments.
-2. A thin service boundary using Hugging Face Text Embeddings Inference (TEI)
-   plus the same local vector index when we want cleaner benchmarking across
-   models.
-3. Optional BM25 hybrid retrieval after dense-only behavior is understood.
+1. BM25 lexical retrieval as the default non-ML baseline.
+2. In-process embeddings via `sentence-transformers` for opt-in local dense
+   benchmarks only.
+3. `e5-small-v2` as an explicit follow-up comparison, not a default.
+
+Current repo posture:
+
+- The repo now includes a retrieval-only scaffold under `artifacts/rag/`.
+- There is still no answer generation or production RAG service path.
+- Dense retrieval must be explicitly enabled and is skipped in CI.
+- Retrieval experiments must index only vetted Gold or provenance-aware reviewed artifacts.
 
 ## Decision posture
 
@@ -90,3 +95,5 @@ Suggested lightweight stack shapes:
 - For `e5-small-v2`, verify query/document prompt formatting during
   implementation instead of assuming the defaults are interchangeable.
 - Keep all model experimentation downstream of validated data products.
+- Treat retrieval quality as a benchmark problem first; do not blur retrieval hits
+  with audited facts or analyst-facing conclusions.

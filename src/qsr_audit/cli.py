@@ -14,6 +14,9 @@ from qsr_audit.forecasting import forecast_baselines as forecast_baselines_pipel
 from qsr_audit.forecasting import snapshot_gold_history as snapshot_gold_history_pipeline
 from qsr_audit.gold import gate_gold_publish as gate_gold_publish_pipeline
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
+from qsr_audit.rag import build_rag_corpus as build_rag_corpus_pipeline
+from qsr_audit.rag import eval_rag_retrieval as eval_rag_retrieval_pipeline
+from qsr_audit.rag import rag_search as rag_search_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
 from qsr_audit.reporting import write_reports as write_reports_pipeline
@@ -143,6 +146,58 @@ ExperimentOutputOption = Annotated[
         ),
     ),
 ]
+
+CorpusPathOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--corpus-path",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        path_type=Path,
+        help=(
+            "Path to an existing retrieval corpus parquet. Defaults to "
+            "`artifacts/rag/corpus/corpus.parquet`."
+        ),
+    ),
+]
+
+BenchmarkPathOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--benchmark-path",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        path_type=Path,
+        help="Optional JSON benchmark fixture with analyst-style queries and relevance judgments.",
+    ),
+]
+
+RagOutputOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--output-root",
+        file_okay=False,
+        dir_okay=True,
+        path_type=Path,
+        help=(
+            "Directory for non-analyst-facing retrieval artifacts. Defaults to "
+            "`artifacts/rag/...`."
+        ),
+    ),
+]
+
+RetrieverOption = typer.Option(
+    None,
+    "--retriever",
+    help=(
+        "Retriever slug to evaluate. Repeat for multiple runs, for example `--retriever bm25 "
+        "--retriever dense-minilm`."
+    ),
+)
 
 
 @app.command()
@@ -422,6 +477,127 @@ def forecast_baseline_command(
     console.print(f"Metrics JSON: {run.artifacts.metrics_json_path}")
     console.print(f"Metrics CSV: {run.artifacts.metrics_csv_path}")
     console.print(f"Summary: {run.artifacts.summary_markdown_path}")
+
+
+@app.command("build-rag-corpus")
+def build_rag_corpus_command(
+    output_root: RagOutputOption = None,
+) -> None:
+    """Build a retrieval-only corpus from vetted Gold and provenance-aware artifacts."""
+
+    try:
+        run = build_rag_corpus_pipeline(
+            settings=get_settings(),
+            output_root=output_root,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG corpus built[/bold blue]")
+    console.print(f"Chunks: {len(run.corpus.index)}")
+    console.print(f"Documents: {run.manifest['document_count']}")
+    console.print(f"Corpus parquet: {run.artifacts.corpus_parquet_path}")
+    console.print(f"Corpus JSONL: {run.artifacts.corpus_jsonl_path}")
+    console.print(f"Manifest: {run.artifacts.manifest_path}")
+
+
+@app.command("eval-rag-retrieval")
+def eval_rag_retrieval_command(
+    corpus_path: CorpusPathOption = None,
+    benchmark_path: BenchmarkPathOption = None,
+    output_root: RagOutputOption = None,
+    retriever: list[str] = RetrieverOption,
+    top_k: int = typer.Option(
+        5,
+        "--top-k",
+        min=1,
+        help="Top-k depth for retrieval metrics such as Recall@k and nDCG@k.",
+    ),
+    allow_model_download: bool = typer.Option(
+        False,
+        "--allow-model-download/--skip-model-download",
+        help="Allow optional dense retrievers to download local model weights when not already cached.",
+    ),
+) -> None:
+    """Evaluate retrieval-only baselines over a local benchmark fixture."""
+
+    try:
+        run = eval_rag_retrieval_pipeline(
+            settings=get_settings(),
+            corpus_path=corpus_path,
+            benchmark_path=benchmark_path,
+            output_root=output_root,
+            retrievers=retriever or ["bm25"],
+            top_k=top_k,
+            allow_model_download=allow_model_download,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG retrieval benchmark complete[/bold blue]")
+    console.print(f"Corpus chunks: {run.summary['corpus_chunk_count']}")
+    console.print(f"Queries: {run.summary['query_count']}")
+    console.print(f"Metrics JSON: {run.artifacts.metrics_json_path}")
+    console.print(f"Metrics CSV: {run.artifacts.metrics_csv_path}")
+    console.print(f"Results parquet: {run.artifacts.results_parquet_path}")
+    console.print(f"Failure cases: {run.artifacts.failure_cases_json_path}")
+    console.print(f"Summary: {run.artifacts.summary_markdown_path}")
+
+
+@app.command("rag-search")
+def rag_search_command(
+    query: Annotated[
+        str,
+        typer.Option(
+            ...,
+            "--query",
+            help="Retrieval-only analyst query. Returns chunks and metadata, not generated answers.",
+        ),
+    ],
+    corpus_path: CorpusPathOption = None,
+    top_k: int = typer.Option(
+        5,
+        "--top-k",
+        min=1,
+        help="Maximum number of retrieved chunks to return.",
+    ),
+    retriever_name: str = typer.Option(
+        "bm25",
+        "--retriever",
+        help="Retriever slug such as `bm25`, `dense-minilm`, or `dense-bge-small`.",
+    ),
+    allow_model_download: bool = typer.Option(
+        False,
+        "--allow-model-download/--skip-model-download",
+        help="Allow optional dense retrievers to download local model weights when not already cached.",
+    ),
+) -> None:
+    """Run retrieval-only search and print ranked chunks plus metadata as JSON, not generated answers."""
+
+    settings = get_settings()
+    resolved_corpus_path = (
+        corpus_path
+        if corpus_path is not None
+        else settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    )
+    if not resolved_corpus_path.exists():
+        raise typer.BadParameter(
+            "RAG search requires an existing corpus parquet. Run `qsr-audit build-rag-corpus` first "
+            "or pass `--corpus-path`."
+        )
+
+    from qsr_audit.rag import load_rag_corpus
+
+    run = rag_search_pipeline(
+        corpus=load_rag_corpus(resolved_corpus_path),
+        query=query,
+        top_k=top_k,
+        retriever_name=retriever_name,
+        allow_model_download=allow_model_download,
+    )
+    if run.status != "ok":
+        raise typer.BadParameter(run.reason or "RAG search could not be executed.")
+    typer.echo(run.results.to_json(orient="records", force_ascii=False))
 
 
 @app.command()

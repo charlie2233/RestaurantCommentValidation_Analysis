@@ -84,6 +84,25 @@ Rules:
 - Forecast artifacts belong under `artifacts/forecasting/`, not `reports/` or
   `strategy/`.
 
+## Retrieval experiment workflow
+
+Retrieval experiments are also offline-only. Use them to benchmark lookup quality
+over vetted local artifacts, not to generate analyst-facing answers.
+
+```bash
+qsr-audit build-rag-corpus
+qsr-audit eval-rag-retrieval --retriever bm25
+qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
+```
+
+Rules:
+
+- The corpus must stay restricted to Gold outputs, provenance-aware reviewed artifacts, and optional manual reference notes under `data/reference/`.
+- Raw workbook files, Bronze, and Silver are excluded by default.
+- Retrieved chunks are not audited facts on their own.
+- Retrieval artifacts belong under `artifacts/rag/`, not `reports/` or `strategy/`.
+- Dense retrieval is opt-in and may be skipped when weights are unavailable or CI is running.
+
 ## How to read the outputs
 
 ### Validation outputs
@@ -114,6 +133,13 @@ Rules:
 - Forecast panels should default to rows that were `publishable` at snapshot time.
 - `advisory` rows remain excluded by default and should not be mixed into facts silently.
 
+### Retrieval experiment outputs
+
+- `artifacts/rag/corpus/` holds the retrieval corpus parquet, JSONL, and manifest.
+- `artifacts/rag/benchmarks/` holds benchmark metrics, per-query retrieval results, failure cases, and summary markdown.
+- `rag-search` returns chunks plus metadata only. It does not synthesize answers.
+- If a retrieved chunk is `blocked` or `advisory`, that status is context, not clearance to use it externally.
+
 ### Syntheticness outputs
 
 - Benford can be skipped or caveated for small or bounded samples.
@@ -136,6 +162,7 @@ Rules:
 5. Open specific `reports/brands/*.md` files for brand-level debugging.
 6. Read `reports/strategy/strategy_playbook.md` only after the earlier steps.
 7. Use forecast experiment artifacts only for offline method comparison, never as proof of future business performance.
+8. Use retrieval experiment artifacts only for lookup benchmarking, never as analyst-facing evidence by themselves.
 
 ## Escalation guidance
 

@@ -17,6 +17,7 @@ def test_subpackages_importable():
         "reconcile",
         "gold",
         "forecasting",
+        "rag",
         "reporting",
         "strategy",
         "models",

@@ -25,6 +25,9 @@ from typer.testing import CliRunner
                 "snapshot-gold",
                 "build-forecast-panel",
                 "forecast-baseline",
+                "build-rag-corpus",
+                "eval-rag-retrieval",
+                "rag-search",
                 "report",
             ],
         ),
@@ -86,6 +89,30 @@ from typer.testing import CliRunner
                 "offline forecast baselines",
                 "holdout periods",
                 "seasonal naive",
+            ],
+        ),
+        (
+            ["build-rag-corpus", "--help"],
+            [
+                "retrieval-only corpus",
+                "vetted Gold and provenance-aware artifacts",
+                "artifacts/rag",
+            ],
+        ),
+        (
+            ["eval-rag-retrieval", "--help"],
+            [
+                "retrieval-only baselines",
+                "benchmark fixture",
+                "dense-minilm",
+            ],
+        ),
+        (
+            ["rag-search", "--help"],
+            [
+                "ranked chunks plus metadata",
+                "not generated answers",
+                "Retriever slug",
             ],
         ),
         (

@@ -100,6 +100,45 @@
   - `artifacts/forecasting/<metric>/baseline_metrics.csv`
   - `artifacts/forecasting/<metric>/baseline_summary.md`
 
+### `qsr-audit build-rag-corpus`
+
+- Purpose: build a retrieval-only corpus from vetted Gold and provenance-aware reviewed artifacts.
+- Guardrails:
+  - excludes raw workbook, Bronze, and Silver sources by default
+  - preserves `publish_status` and provenance metadata on each chunk
+  - writes only under `artifacts/rag/corpus/`
+- Primary outputs:
+  - `artifacts/rag/corpus/corpus.parquet`
+  - `artifacts/rag/corpus/corpus.jsonl`
+  - `artifacts/rag/corpus/manifest.json`
+
+### `qsr-audit eval-rag-retrieval`
+
+- Purpose: benchmark retrieval-only baselines over a local query and relevance fixture.
+- Baselines:
+  - BM25 lexical retrieval
+  - optional `dense-minilm`
+  - optional `dense-bge-small`
+  - optional `dense-e5-small` only when explicitly requested
+- Guardrails:
+  - dense retrieval remains opt-in
+  - dense retrieval is skipped in CI
+  - writes only under `artifacts/rag/benchmarks/`
+- Primary outputs:
+  - `artifacts/rag/benchmarks/retrieval_metrics.json`
+  - `artifacts/rag/benchmarks/retrieval_metrics.csv`
+  - `artifacts/rag/benchmarks/retrieval_results.parquet`
+  - `artifacts/rag/benchmarks/failure_cases.json`
+  - `artifacts/rag/benchmarks/retrieval_summary.md`
+
+### `qsr-audit rag-search --query "..."`
+
+- Purpose: return retrieved chunks plus metadata only.
+- Guardrails:
+  - no answer synthesis
+  - no chat layer
+  - no analyst-facing output files
+
 ### `qsr-audit report --output reports/`
 
 - Purpose: build analyst-facing scorecards and downstream Gold-only strategy outputs.
@@ -134,6 +173,14 @@ qsr-audit build-forecast-panel --metric system_sales
 qsr-audit forecast-baseline --metric system_sales
 ```
 
+## Retrieval experiment example
+
+```bash
+qsr-audit build-rag-corpus
+qsr-audit eval-rag-retrieval --retriever bm25
+qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
+```
+
 ## Notes
 
 - The legacy `ingest` and `validate` commands are placeholders. Use `ingest-workbook` and `validate-workbook`.
@@ -141,3 +188,4 @@ qsr-audit forecast-baseline --metric system_sales
 - `gate-gold` is the export decision layer. Advisory rows are not publishable, and blocked rows should be treated as unsafe for external use.
 - Strategy is downstream-only. It must consume Gold outputs and must not redefine business truth on its own.
 - Forecasting commands are experimental and offline-only. Their outputs are not audited facts and must not be surfaced as analyst-facing reports in this scaffold.
+- Retrieval commands are experimental and retrieval-only. Retrieved chunks are navigation aids, not audited answers.

@@ -1,101 +1,109 @@
 # RAG Experiments
 
-This document outlines lightweight retrieval experiments for future internal
-research. It does not approve production RAG inside the workbook audit pipeline.
+This repo now supports a retrieval-only RAG experiment scaffold. It is local,
+offline, and intentionally narrower than a production RAG stack.
 
-## Goal
+## Scope
 
-Test whether compact embedding models can improve analyst lookup over validated
-reference material, provenance notes, and reconciliation summaries without
-introducing a heavy serving stack.
+The first experiment is retrieval quality only:
 
-The first experiment should focus on retrieval quality, not answer generation.
+- corpus construction from vetted local artifacts
+- BM25 lexical retrieval
+- opt-in dense retrieval on small local models
+- benchmarked chunk lookup with relevance judgments
 
-## Candidate embeddings
+Out of scope in this PR:
 
-| Candidate | Primary use | Notes |
-| --- | --- | --- |
-| [`sentence-transformers/all-MiniLM-L6-v2`](https://hf.co/sentence-transformers/all-MiniLM-L6-v2) | Default baseline | Very small, cheap to run, broad community baseline. |
-| [`BAAI/bge-small-en-v1.5`](https://hf.co/BAAI/bge-small-en-v1.5) | Quality-focused lightweight option | Good retrieval candidate when we want a stronger English dense baseline. |
-| [`intfloat/e5-small-v2`](https://hf.co/intfloat/e5-small-v2) | Alternative dense baseline | Useful when prompt formatting and retrieval behavior need comparison. |
-| [`intfloat/multilingual-e5-small`](https://hf.co/intfloat/multilingual-e5-small) | Multilingual fallback | Use only if the corpus or analyst questions are not reliably English-only. |
+- answer generation
+- chat interfaces
+- hosted vector databases
+- service deployment
+- any path that treats retrieval output as an audited fact
 
-## Lightweight stack options
+## Retrieval commands
 
-### Option A: in-process baseline
+```bash
+qsr-audit build-rag-corpus
+qsr-audit eval-rag-retrieval --retriever bm25
+qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
+```
 
-- Embed documents directly in-process with `sentence-transformers`.
-- Build a simple local vector index.
-- Use notebook or test-fixture scale corpora only.
-- Keep a lexical baseline such as BM25 for comparison.
+These commands write only under `artifacts/rag/`. They do not write analyst
+outputs under `reports/` or `strategy/`.
 
-Why start here:
+## Approved corpus sources
 
-- Lowest operational complexity.
-- Easiest to test deterministically.
-- Enough to compare chunking and embedding choices.
+The retrieval corpus is built only from vetted local artifacts:
 
-### Option B: thin service boundary
+- `data/gold/gold_publish_decisions.parquet`
+- `data/gold/publishable_kpis.parquet` or `data/gold/blocked_kpis.parquet` as fallback subsets
+- `data/gold/reconciled_core_metrics.parquet`
+- `data/gold/reference_coverage.parquet`
+- `data/gold/validation_flags.parquet`
+- `data/gold/provenance_registry.parquet`
+- `reports/validation/validation_summary.md` when present
+- optional normalized manual reference notes under `data/reference/manual_reference_notes.{parquet,csv}`
 
-- Serve the embedding model through Hugging Face Text Embeddings Inference.
-- Keep the retriever and evaluation harness local.
-- Use the same corpus and queries as Option A.
-- Add reranking only after first-pass dense retrieval is stable.
+Excluded by default:
 
-Why this matters:
+- raw workbooks
+- Bronze sheet dumps
+- Silver fact tables
 
-- Cleaner separation between embedding inference and retrieval logic.
-- Easier apples-to-apples comparison across models.
-- Still lightweight compared with a full production search stack.
+Why raw workbook files are excluded:
 
-### Optional reranking
+- the workbook is a hypothesis artifact, not a source of truth
+- Bronze and Silver are working layers, not reviewed retrieval sources
+- retrieval experiments must not bypass Gold validation, reconciliation, or publishing decisions
 
-If top-k retrieval is close but not good enough, test a cheap reranker such as
-[`cross-encoder/ms-marco-MiniLM-L6-v2`](https://hf.co/cross-encoder/ms-marco-MiniLM-L6-v2)
-on the top 20 or top 50 retrieved chunks before trying larger rerankers.
+## Retrieval baselines
 
-## Retrieval corpus candidates
+Default baseline:
 
-Only use vetted local material:
+- BM25 lexical retrieval
 
-- Gold validation outputs
-- Gold reconciliation outputs
-- Provenance registry records
-- Manual reference notes that have already been normalized and reviewed
+Opt-in dense comparisons:
 
-Do not index raw workbooks as if they were trusted facts.
+- `sentence-transformers/all-MiniLM-L6-v2`
+- `BAAI/bge-small-en-v1.5`
+- `intfloat/e5-small-v2` remains optional and off by default
 
-## Evaluation plan
+Dense retrieval is local-only and safely skipped in CI. Model downloads are not
+allowed unless explicitly requested.
 
-Use a small analyst-authored benchmark:
+## Benchmark shape
 
-1. Write representative analyst questions.
-2. Mark the documents or chunks that should support each answer.
-3. Measure retrieval hit rate at `k`, ranking quality, and failure cases.
-4. Record whether errors come from chunking, metadata filtering, or embedding
-   quality.
+The benchmark harness expects a small JSON fixture of analyst-style questions
+plus relevance judgments. Relevance can be authored with explicit chunk IDs or
+with stable metadata selectors.
 
-Suggested checks:
+Minimum evaluation metrics:
 
 - Recall@k
-- MRR or nDCG
-- Citation precision
-- Answer faithfulness if answer generation is added later
-- Metadata filter correctness
-- Query latency on local hardware
-- Index size
+- MRR
+- nDCG@k
+- citation precision
+- metadata filter correctness
+- latency
+- index size
+
+Benchmark outputs live under `artifacts/rag/benchmarks/` as machine-readable
+metrics, per-query retrieval results, a concise markdown summary, and failure
+case details.
+
+## Relevance judgments
+
+The checked-in default fixture is only a smoke benchmark. A meaningful analyst
+benchmark still requires:
+
+- representative analyst questions
+- relevance judgments tied to real local artifact coverage
+- explicit metadata filters where the query implies them
+- reviewed failure cases for low-recall queries
 
 ## Guardrails
 
-- Start with retrieval-only evaluation before any answer synthesis.
-- Do not let RAG outputs bypass existing Gold validation and reconciliation
-  outputs.
-- Do not claim factual authority beyond the indexed Gold/provenance material.
-- Keep experiments local, reproducible, and easy to delete.
-
-## Recommendation
-
-Start with `all-MiniLM-L6-v2` as the baseline, compare against
-`bge-small-en-v1.5`, and bring in `e5-small-v2` only if the first two leave
-retrieval gaps worth investigating. Add multilingual E5 only if the benchmark
-proves English-only retrieval is not enough.
+- Retrieval output is not the same thing as an audited fact.
+- Blocked and advisory material may be indexed only when their metadata labels are preserved.
+- Retrieval experiments must remain downstream of Gold and provenance-aware reviewed artifacts.
+- No answer synthesis should be added until retrieval quality is good enough to justify it.

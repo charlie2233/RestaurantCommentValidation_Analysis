@@ -29,6 +29,9 @@ dev = [
     "ruff",
     "pre-commit",
 ]
+rag = [
+    "sentence-transformers",
+]
 
 [project.scripts]
 qsr-audit = "qsr_audit.cli:app"
