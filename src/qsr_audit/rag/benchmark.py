@@ -93,7 +93,9 @@ def eval_rag_retrieval(
 
     resolved_settings = settings or Settings()
     resolved_corpus_path = (
-        corpus_path if corpus_path is not None else resolved_settings.artifacts_dir / DEFAULT_CORPUS_PATH
+        corpus_path
+        if corpus_path is not None
+        else resolved_settings.artifacts_dir / DEFAULT_CORPUS_PATH
     )
     if not resolved_corpus_path.exists():
         raise FileNotFoundError(
@@ -309,10 +311,14 @@ def render_rag_benchmark_summary(summary: dict[str, Any]) -> str:
 
 def _resolve_output_root(*, output_root: Path | None, settings: Settings) -> Path:
     resolved = (
-        output_root
-        if output_root is not None
-        else settings.artifacts_dir / DEFAULT_BENCHMARKS_SUBDIR
-    ).expanduser().resolve()
+        (
+            output_root
+            if output_root is not None
+            else settings.artifacts_dir / DEFAULT_BENCHMARKS_SUBDIR
+        )
+        .expanduser()
+        .resolve()
+    )
     for forbidden_root in (
         settings.reports_dir.expanduser().resolve(),
         settings.strategy_dir.expanduser().resolve(),
@@ -346,7 +352,9 @@ def _resolve_relevant_chunk_ids(corpus: pd.DataFrame, query_spec: dict[str, Any]
             str(chunk_id)
             for chunk_id in corpus.loc[corpus["doc_id"].isin(explicit_doc_ids), "chunk_id"].tolist()
         }
-    relevant_filters = query_spec.get("relevant_filters") or query_spec.get("metadata_filters") or {}
+    relevant_filters = (
+        query_spec.get("relevant_filters") or query_spec.get("metadata_filters") or {}
+    )
     if not relevant_filters:
         return set()
     relevant_rows = [
@@ -392,9 +400,7 @@ def _score_query_results(
     ideal_hits = min(len(relevant_chunk_ids), top_k)
     ideal_dcg = sum(1 / math.log2(rank + 1) for rank in range(1, ideal_hits + 1))
     ndcg = dcg / ideal_dcg if ideal_dcg else None
-    citation_precision = (
-        float(results["citation_present"].mean()) if not results.empty else 0.0
-    )
+    citation_precision = float(results["citation_present"].mean()) if not results.empty else 0.0
     metadata_filter_correctness = (
         float(results["filter_match"].mean()) if metadata_filters and not results.empty else None
     )
@@ -402,7 +408,9 @@ def _score_query_results(
         "query_id": query_id,
         "query": query,
         "status": "ok" if recall == 1.0 else "warning",
-        "status_reason": None if recall == 1.0 else "Not all judged chunks were retrieved in the top-k.",
+        "status_reason": None
+        if recall == 1.0
+        else "Not all judged chunks were retrieved in the top-k.",
         "recall_at_k": round(recall, 6),
         "mrr": round(mrr, 6),
         "ndcg_at_k": round(float(ndcg), 6) if ndcg is not None else None,
@@ -426,7 +434,9 @@ def _aggregate_query_metrics(
     return {
         "retriever_name": retriever_name,
         "status": "ok" if evaluable else "skipped",
-        "status_reason": None if evaluable else "No evaluable benchmark queries matched the corpus.",
+        "status_reason": None
+        if evaluable
+        else "No evaluable benchmark queries matched the corpus.",
         "query_count": len(query_metrics),
         "evaluable_query_count": len(evaluable),
         "recall_at_k": _average_metric(evaluable, "recall_at_k"),
@@ -549,7 +559,7 @@ def _row_matches_filters(row: dict[str, Any], metadata_filters: dict[str, Any]) 
             if not _list_matches(_json_list(actual), expected):
                 return False
             continue
-        if isinstance(expected, (list, tuple, set)):
+        if isinstance(expected, list | tuple | set):
             if str(actual) not in {str(value) for value in expected}:
                 return False
         elif str(actual) != str(expected):
@@ -592,7 +602,7 @@ def _json_list(value: object) -> list[str]:
 
 
 def _list_matches(actual: list[str], expected: Any) -> bool:
-    if isinstance(expected, (list, tuple, set)):
+    if isinstance(expected, list | tuple | set):
         expected_values = {str(value) for value in expected}
         return bool(expected_values.intersection({str(value) for value in actual}))
     return str(expected) in {str(value) for value in actual}

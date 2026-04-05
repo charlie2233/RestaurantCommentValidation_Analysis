@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -177,10 +178,8 @@ def build_rag_corpus(
         max_chunk_chars=max_chunk_chars,
         overlap_chars=overlap_chars,
     )
-    corpus = pd.DataFrame(chunk_rows)
-    if corpus.empty:
-        corpus = pd.DataFrame(columns=_corpus_columns())
-    else:
+    corpus = pd.DataFrame(columns=_corpus_columns()) if not chunk_rows else pd.DataFrame(chunk_rows)
+    if not corpus.empty:
         corpus = corpus[_corpus_columns()]
 
     corpus_parquet_path = resolved_output_root / "corpus.parquet"
@@ -243,10 +242,10 @@ def load_rag_corpus(corpus_path: Path) -> pd.DataFrame:
 
 def _resolve_output_root(*, output_root: Path | None, settings: Settings) -> Path:
     resolved = (
-        output_root
-        if output_root is not None
-        else settings.artifacts_dir / DEFAULT_CORPUS_SUBDIR
-    ).expanduser().resolve()
+        (output_root if output_root is not None else settings.artifacts_dir / DEFAULT_CORPUS_SUBDIR)
+        .expanduser()
+        .resolve()
+    )
     for forbidden_root in (
         settings.reports_dir.expanduser().resolve(),
         settings.strategy_dir.expanduser().resolve(),
@@ -616,7 +615,9 @@ def _load_manual_reference_notes(settings: Settings) -> tuple[list[dict[str, Any
                     "confidence_score": _float_or_none(row.get("confidence_score")),
                     "source_name": _string_or_none(row.get("source_name") or candidate_path.name),
                     "source_url_or_doc_id": _string_or_none(row.get("source_url_or_doc_id")),
-                    "metadata_json": json.dumps(row, ensure_ascii=False, sort_keys=True, default=str),
+                    "metadata_json": json.dumps(
+                        row, ensure_ascii=False, sort_keys=True, default=str
+                    ),
                 }
             )
         return documents, candidate_path
@@ -662,7 +663,11 @@ def _deterministic_chunks(text: str, *, max_chunk_chars: int, overlap_chars: int
         if len(paragraph) <= max_chunk_chars:
             buffer = paragraph
             continue
-        chunks.extend(_split_long_text(paragraph, max_chunk_chars=max_chunk_chars, overlap_chars=overlap_chars))
+        chunks.extend(
+            _split_long_text(
+                paragraph, max_chunk_chars=max_chunk_chars, overlap_chars=overlap_chars
+            )
+        )
     if buffer:
         chunks.append(buffer)
     return chunks or [normalized]

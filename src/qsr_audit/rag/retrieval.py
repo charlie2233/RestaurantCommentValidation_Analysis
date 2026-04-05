@@ -266,20 +266,13 @@ def _resolve_retriever(
             "Dense retrieval requires the optional `sentence-transformers` dependency."
         )
     except Exception as exc:  # pragma: no cover - exact local cache errors vary by environment.
-        return _SkippedRetriever(
-            f"`{retriever_name}` could not be initialized locally: {exc}"
-        )
+        return _SkippedRetriever(f"`{retriever_name}` could not be initialized locally: {exc}")
 
 
-def _apply_metadata_filters(
-    frame: pd.DataFrame, metadata_filters: dict[str, Any]
-) -> pd.DataFrame:
+def _apply_metadata_filters(frame: pd.DataFrame, metadata_filters: dict[str, Any]) -> pd.DataFrame:
     if not metadata_filters:
         return frame.copy()
-    mask = [
-        _row_matches_filters(row, metadata_filters)
-        for row in frame.to_dict(orient="records")
-    ]
+    mask = [_row_matches_filters(row, metadata_filters) for row in frame.to_dict(orient="records")]
     return frame.loc[mask].copy()
 
 
@@ -296,7 +289,7 @@ def _row_matches_filters(row: dict[str, Any], metadata_filters: dict[str, Any]) 
             parsed = _json_list(actual)
             if parsed and _list_matches(parsed, expected):
                 continue
-        if isinstance(expected, (list, tuple, set)):
+        if isinstance(expected, list | tuple | set):
             if str(actual) not in {str(value) for value in expected}:
                 return False
         elif str(actual) != str(expected):
@@ -408,7 +401,7 @@ def _metadata_json(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _list_matches(actual: list[str], expected: Any) -> bool:
-    if isinstance(expected, (list, tuple, set)):
+    if isinstance(expected, list | tuple | set):
         expected_values = {str(value) for value in expected}
         return bool(expected_values.intersection({str(value) for value in actual}))
     return str(expected) in {str(value) for value in actual}

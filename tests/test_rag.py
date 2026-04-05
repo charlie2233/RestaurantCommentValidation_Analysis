@@ -9,8 +9,9 @@ import pandas as pd
 import pytest
 from qsr_audit.cli import app
 from qsr_audit.rag import build_rag_corpus, eval_rag_retrieval
-from tests.helpers import build_settings
 from typer.testing import CliRunner
+
+from tests.helpers import build_settings
 
 
 def _write_rag_source_artifacts(
@@ -167,11 +168,13 @@ def _write_rag_source_artifacts(
         validation_dir.mkdir(parents=True, exist_ok=True)
         (validation_dir / "validation_summary.md").write_text(summary_body, encoding="utf-8")
 
-    (settings.data_raw / "source_workbook.xlsx").write_text("raw workbook placeholder", encoding="utf-8")
+    (settings.data_raw / "source_workbook.xlsx").write_text(
+        "raw workbook placeholder", encoding="utf-8"
+    )
     (settings.data_bronze / "raw_dump.csv").write_text("bronze dump placeholder", encoding="utf-8")
-    pd.DataFrame(
-        [{"field_name": "store_count", "note_text": "Silver workbook note"}]
-    ).to_parquet(settings.data_silver / "data_notes.parquet", index=False)
+    pd.DataFrame([{"field_name": "store_count", "note_text": "Silver workbook note"}]).to_parquet(
+        settings.data_silver / "data_notes.parquet", index=False
+    )
 
 
 def _write_manual_corpus(path: Path) -> pd.DataFrame:
@@ -294,8 +297,12 @@ def test_build_rag_corpus_chunking_is_deterministic(tmp_path: Path) -> None:
     settings = build_settings(tmp_path)
     _write_rag_source_artifacts(settings, long_validation_summary=True)
 
-    first = build_rag_corpus(settings=settings, output_root=settings.artifacts_dir / "rag" / "corpus-a")
-    second = build_rag_corpus(settings=settings, output_root=settings.artifacts_dir / "rag" / "corpus-b")
+    first = build_rag_corpus(
+        settings=settings, output_root=settings.artifacts_dir / "rag" / "corpus-a"
+    )
+    second = build_rag_corpus(
+        settings=settings, output_root=settings.artifacts_dir / "rag" / "corpus-b"
+    )
 
     assert first.corpus[["chunk_id", "doc_id", "text"]].to_dict(orient="records") == second.corpus[
         ["chunk_id", "doc_id", "text"]

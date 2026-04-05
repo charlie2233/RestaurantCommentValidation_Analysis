@@ -8,7 +8,12 @@ from qsr_audit.rag.benchmark import (
     render_rag_benchmark_summary,
 )
 from qsr_audit.rag.corpus import RagCorpusArtifacts, RagCorpusRun, build_rag_corpus, load_rag_corpus
-from qsr_audit.rag.retrieval import RagSearchRun, available_retriever_names, prepare_retriever, rag_search
+from qsr_audit.rag.retrieval import (
+    RagSearchRun,
+    available_retriever_names,
+    prepare_retriever,
+    rag_search,
+)
 
 __all__ = [
     "DEFAULT_RETRIEVAL_BENCHMARK",
