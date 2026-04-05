@@ -113,6 +113,51 @@ def _write_reference_file(path: Path) -> None:
     ).to_csv(path, index=False)
 
 
+def _write_reference_file_with_extra_brand(path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "brand_name": "McDonald's",
+                "canonical_brand_name": "McDonald's",
+                "source_type": "qsr50",
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-1",
+                "as_of_date": "2024-12-31",
+                "method_reported_or_estimated": "reported",
+                "confidence_score": 0.95,
+                "notes": "Annual ranking",
+                "qsr50_rank": 1,
+                "us_store_count_2024": 13559,
+                "systemwide_revenue_usd_billions_2024": 53.5,
+                "average_unit_volume_usd_thousands": 4001,
+                "currency": "USD",
+                "geography": "US",
+                "source_page": "12",
+                "source_excerpt": "McDonald's metrics",
+            },
+            {
+                "brand_name": "Burger King",
+                "canonical_brand_name": "Burger King",
+                "source_type": "qsr50",
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-3",
+                "as_of_date": "2024-12-31",
+                "method_reported_or_estimated": "reported",
+                "confidence_score": 0.85,
+                "notes": "Extra brand not present in audited core",
+                "qsr50_rank": 7,
+                "us_store_count_2024": 6800,
+                "systemwide_revenue_usd_billions_2024": 11.2,
+                "average_unit_volume_usd_thousands": 1650,
+                "currency": "USD",
+                "geography": "US",
+                "source_page": "14",
+                "source_excerpt": "Extra brand row for coverage regression",
+            },
+        ]
+    ).to_csv(path, index=False)
+
+
 def _write_partial_reference_file(path: Path) -> None:
     pd.DataFrame(
         [
@@ -241,6 +286,30 @@ def test_load_reference_catalog_warns_on_partially_filled_reference_csv(tmp_path
     assert "Taco Bell" in catalog["canonical_brand_name"].tolist()
 
 
+def test_audit_reference_coverage_normalizes_core_aliases_before_matching(tmp_path: Path) -> None:
+    settings = _build_settings(tmp_path)
+    core_path = settings.data_silver / "core_brand_metrics.parquet"
+    _write_core_metrics(core_path)
+    _write_reference_file(settings.data_reference / "qsr50_reference.csv")
+
+    core_frame = pd.read_parquet(core_path).drop(columns=["canonical_brand_name"])
+    core_frame.to_parquet(core_path, index=False)
+
+    run = audit_reference_coverage(core_path, settings.data_reference, settings=settings)
+
+    coverage = pd.read_parquet(run.artifacts.coverage_parquet_path)
+    brand_row = coverage.loc[
+        (coverage["coverage_kind"] == "brand") & (coverage["brand_name"] == "McDonalds")
+    ].iloc[0]
+    assert brand_row["canonical_brand_name"] == "McDonald's"
+    assert bool(brand_row["is_covered"]) is True
+    assert int(brand_row["covered_metrics_count"]) == 4
+    assert not any(
+        "McDonald's" in warning and "No populated manual reference rows matched" in warning
+        for warning in run.warnings
+    )
+
+
 def test_audit_reference_coverage_writes_outputs_and_reports_empty_reference(
     tmp_path: Path,
 ) -> None:
@@ -275,6 +344,71 @@ def test_audit_reference_coverage_writes_outputs_and_reports_empty_reference(
     assert any("no populated reference rows" in warning.lower() for warning in empty_run.warnings)
     empty_markdown = empty_run.artifacts.coverage_markdown_path.read_text(encoding="utf-8")
     assert "No reference coverage warnings were emitted." not in empty_markdown
+
+
+def test_source_type_coverage_ignores_reference_brands_outside_core(tmp_path: Path) -> None:
+    settings = _build_settings(tmp_path)
+    core_path = settings.data_silver / "core_brand_metrics.parquet"
+    _write_core_metrics(core_path)
+    _write_reference_file_with_extra_brand(settings.data_reference / "qsr50_reference.csv")
+
+    run = audit_reference_coverage(core_path, settings.data_reference, settings=settings)
+
+    coverage = pd.read_parquet(run.artifacts.coverage_parquet_path)
+    source_row = coverage.loc[
+        (coverage["coverage_kind"] == "source_type") & (coverage["source_type"] == "qsr50")
+    ].iloc[0]
+    details = json.loads(source_row["details"])
+    assert int(source_row["covered_brand_count"]) == 1
+    assert int(source_row["missing_brand_count"]) == 1
+    assert float(source_row["coverage_rate"]) == pytest.approx(0.5)
+    assert float(source_row["coverage_rate"]) <= 1.0
+    assert details["extra_reference_brands"] == ["Burger King"]
+
+
+def test_reference_coverage_rate_is_bounded_even_with_many_extra_reference_brands(
+    tmp_path: Path,
+) -> None:
+    settings = _build_settings(tmp_path)
+    core_path = settings.data_silver / "core_brand_metrics.parquet"
+    _write_core_metrics(core_path)
+    _write_reference_file_with_extra_brand(settings.data_reference / "qsr50_reference.csv")
+    existing_rows = pd.read_csv(settings.data_reference / "qsr50_reference.csv")
+    extra_rows = pd.DataFrame(
+        [
+            {
+                "brand_name": f"Extra Brand {index}",
+                "canonical_brand_name": f"Extra Brand {index}",
+                "source_type": "qsr50",
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": f"doc-extra-{index}",
+                "as_of_date": "2024-12-31",
+                "method_reported_or_estimated": "reported",
+                "confidence_score": 0.8,
+                "notes": "Coverage-rate guardrail regression row",
+                "qsr50_rank": 20 + index,
+                "us_store_count_2024": 1000 + index,
+                "systemwide_revenue_usd_billions_2024": 1.0 + index,
+                "average_unit_volume_usd_thousands": 1000 + index,
+                "currency": "USD",
+                "geography": "US",
+                "source_page": str(20 + index),
+                "source_excerpt": "Synthetic extra reference row",
+            }
+            for index in range(5)
+        ]
+    )
+    pd.concat([existing_rows, extra_rows], ignore_index=True).to_csv(
+        settings.data_reference / "qsr50_reference.csv",
+        index=False,
+    )
+
+    run = audit_reference_coverage(core_path, settings.data_reference, settings=settings)
+
+    coverage = pd.read_parquet(run.artifacts.coverage_parquet_path)
+    source_rows = coverage.loc[coverage["coverage_kind"] == "source_type"]
+    assert source_rows["coverage_rate"].fillna(0.0).le(1.0).all()
+    assert source_rows["covered_brand_count"].fillna(0).le(2).all()
 
 
 def test_reconcile_core_metrics_explicitly_reports_empty_reference_coverage(

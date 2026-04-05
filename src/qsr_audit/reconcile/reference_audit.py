@@ -9,6 +9,8 @@ from typing import Any
 
 import pandas as pd
 
+from qsr_audit.reconcile.entity_resolution import canonical_brand_dictionary, resolve_brand_name
+
 REFERENCE_TEMPLATE_COLUMNS: dict[str, tuple[str, ...]] = {
     "qsr50_reference.csv": (
         "brand_name",
@@ -274,12 +276,13 @@ def build_reference_coverage(
     warnings: list[str] = []
     rows: list[dict[str, Any]] = []
 
-    if "canonical_brand_name" not in core_frame.columns and "brand_name" in core_frame.columns:
-        core_frame = core_frame.copy()
-        core_frame["canonical_brand_name"] = core_frame["brand_name"]
-
-    core_rows = core_frame[["brand_name", "canonical_brand_name"]].copy()
+    core_rows = _normalize_core_rows_for_coverage(core_frame)
     total_core_brands = len(core_rows.index)
+    core_brand_names = {
+        str(value)
+        for value in core_rows["canonical_brand_name"].fillna("").tolist()
+        if str(value).strip()
+    }
     brand_rows: list[dict[str, Any]] = []
 
     for core_row in core_rows.to_dict(orient="records"):
@@ -423,19 +426,35 @@ def build_reference_coverage(
     for file_name in REFERENCE_TEMPLATE_FILES:
         source_type = REFERENCE_FILE_SOURCE_TYPES[file_name]
         subset = reference_frame[reference_frame["source_file_name"] == file_name].copy()
+        audited_subset = subset[
+            subset["canonical_brand_name"].fillna("").astype(str).isin(core_brand_names)
+        ].copy()
         provenance_score, completeness_summary, confidence_summary = summarize_provenance_quality(
-            subset
+            audited_subset
         )
         covered_metric_names = [
             metric_name
             for metric_name, column_name in REFERENCE_METRIC_COLUMNS.items()
-            if not subset.empty and subset[column_name].notna().any()
+            if not audited_subset.empty and audited_subset[column_name].notna().any()
         ]
         missing_metric_names = [
             metric_name
             for metric_name in REFERENCE_METRIC_COLUMNS
             if metric_name not in covered_metric_names
         ]
+        covered_brand_count = (
+            int(audited_subset["canonical_brand_name"].dropna().nunique())
+            if not audited_subset.empty
+            else 0
+        )
+        coverage_rate = (
+            min((covered_brand_count / total_core_brands), 1.0) if total_core_brands else 0.0
+        )
+        extra_reference_brands = sorted(
+            str(value)
+            for value in subset["canonical_brand_name"].dropna().unique()
+            if str(value).strip() and str(value) not in core_brand_names
+        )
         warning = None
         if subset.empty:
             warning = (
@@ -452,29 +471,15 @@ def build_reference_coverage(
                 "canonical_brand_name": None,
                 "metric_name": None,
                 "source_type": source_type,
-                "is_covered": not subset.empty,
+                "is_covered": not audited_subset.empty,
                 "reference_row_count": int(len(subset.index)),
-                "reference_source_count": int(subset["source_name"].dropna().nunique())
-                if not subset.empty
+                "reference_source_count": int(audited_subset["source_name"].dropna().nunique())
+                if not audited_subset.empty
                 else 0,
                 "covered_metrics_count": len(covered_metric_names),
-                "covered_brand_count": int(subset["canonical_brand_name"].dropna().nunique())
-                if not subset.empty
-                else 0,
-                "missing_brand_count": max(
-                    total_core_brands
-                    - (
-                        int(subset["canonical_brand_name"].dropna().nunique())
-                        if not subset.empty
-                        else 0
-                    ),
-                    0,
-                ),
-                "coverage_rate": (
-                    int(subset["canonical_brand_name"].dropna().nunique()) / total_core_brands
-                    if total_core_brands
-                    else 0.0
-                ),
+                "covered_brand_count": covered_brand_count,
+                "missing_brand_count": max(total_core_brands - covered_brand_count, 0),
+                "coverage_rate": coverage_rate,
                 "missing_metrics": missing_metric_names,
                 "missing_brands": None,
                 "source_type_names": [source_type],
@@ -485,6 +490,7 @@ def build_reference_coverage(
                 "details": {
                     "source_file_name": file_name,
                     "covered_metric_names": covered_metric_names,
+                    "extra_reference_brands": extra_reference_brands,
                 },
             }
         )
@@ -661,6 +667,29 @@ def _json_dump_or_none(value: object) -> str | None:
     if value is None or value == "":
         return None
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _normalize_core_rows_for_coverage(core_frame: pd.DataFrame) -> pd.DataFrame:
+    normalized = core_frame.copy()
+    if "canonical_brand_name" not in normalized.columns:
+        normalized["canonical_brand_name"] = None
+
+    known_brands = canonical_brand_dictionary().keys()
+    canonical_names: list[str] = []
+    for row in normalized.to_dict(orient="records"):
+        resolution_input = _clean_optional_text(row.get("brand_name")) or _clean_optional_text(
+            row.get("canonical_brand_name")
+        )
+        resolution = resolve_brand_name(resolution_input, candidate_brands=known_brands)
+        fallback_name = (
+            _clean_optional_text(row.get("canonical_brand_name"))
+            or _clean_optional_text(row.get("brand_name"))
+            or ""
+        )
+        canonical_names.append(resolution.canonical_brand_name or fallback_name)
+
+    normalized["canonical_brand_name"] = canonical_names
+    return normalized[["brand_name", "canonical_brand_name"]].copy()
 
 
 def _template_metric_columns(file_name: str) -> tuple[str, ...]:
