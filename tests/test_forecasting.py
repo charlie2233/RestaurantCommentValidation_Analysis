@@ -14,6 +14,7 @@ from qsr_audit.forecasting import (
     prepare_chronos_experiment,
     snapshot_gold_history,
 )
+from qsr_audit.forecasting.baselines import _has_regular_cadence
 
 from tests.helpers import build_settings
 
@@ -262,6 +263,115 @@ def test_forecast_baseline_metrics_are_deterministic(tmp_path: Path) -> None:
     summary_text = run.artifacts.summary_markdown_path.read_text(encoding="utf-8")
     assert "Forecast Baseline Summary" in summary_text
     assert "naive_last_value" in summary_text
+
+
+def test_forecast_baselines_holdout_two_uses_fixed_origin_history(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    _snapshot_fixture_series(
+        settings,
+        [
+            ("2025-01-31", 10.0, 20.0),
+            ("2025-02-28", 20.0, 21.0),
+            ("2025-03-31", 30.0, 22.0),
+            ("2025-04-30", 100.0, 23.0),
+            ("2025-05-31", 200.0, 24.0),
+        ],
+    )
+
+    run = forecast_baselines(
+        metric_name="system_sales",
+        settings=settings,
+        holdout_periods=2,
+        rolling_window=2,
+        season_length=2,
+    )
+    mcd_forecasts = run.forecasts.loc[
+        run.forecasts["canonical_brand_name"] == "McDonald's"
+    ].sort_values(["baseline_name", "baseline_date"], kind="stable")
+
+    naive_predictions = mcd_forecasts.loc[
+        mcd_forecasts["baseline_name"] == "naive_last_value", "prediction"
+    ].tolist()
+    assert naive_predictions == [30.0, 30.0]
+
+    rolling_predictions = mcd_forecasts.loc[
+        mcd_forecasts["baseline_name"] == "rolling_average_2", "prediction"
+    ].tolist()
+    assert rolling_predictions == [25.0, 25.0]
+
+    smoothing_predictions = mcd_forecasts.loc[
+        mcd_forecasts["baseline_name"] == "exp_smoothing_alpha_0_5", "prediction"
+    ].tolist()
+    assert smoothing_predictions == [22.5, 22.5]
+
+    seasonal_predictions = mcd_forecasts.loc[
+        mcd_forecasts["baseline_name"] == "seasonal_naive", "prediction"
+    ].tolist()
+    assert seasonal_predictions == [20.0, 30.0]
+
+
+def test_has_regular_cadence_accepts_month_end_dates() -> None:
+    assert _has_regular_cadence(
+        pd.Series(
+            [
+                "2025-01-31",
+                "2025-02-28",
+                "2025-03-31",
+                "2025-04-30",
+            ]
+        )
+    )
+
+
+def test_has_regular_cadence_accepts_quarter_end_dates() -> None:
+    assert _has_regular_cadence(
+        pd.Series(
+            [
+                "2025-03-31",
+                "2025-06-30",
+                "2025-09-30",
+                "2025-12-31",
+            ]
+        )
+    )
+
+
+def test_has_regular_cadence_rejects_ragged_dates() -> None:
+    assert not _has_regular_cadence(
+        pd.Series(
+            [
+                "2025-01-31",
+                "2025-03-15",
+                "2025-04-30",
+                "2025-07-20",
+            ]
+        )
+    )
+
+
+def test_seasonal_naive_runs_on_regular_month_end_panel(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    _snapshot_fixture_series(
+        settings,
+        [
+            ("2025-01-31", 10.0, 20.0),
+            ("2025-02-28", 12.0, 21.0),
+            ("2025-03-31", 14.0, 22.0),
+            ("2025-04-30", 16.0, 23.0),
+        ],
+    )
+
+    run = forecast_baselines(
+        metric_name="system_sales",
+        settings=settings,
+        season_length=2,
+    )
+
+    seasonal = run.metrics.loc[run.metrics["baseline_name"] == "seasonal_naive"].iloc[0]
+    assert seasonal["status"] == "ok"
+    assert seasonal["observation_count"] == 2
 
 
 def test_prepare_chronos_experiment_is_opt_in_and_ci_guarded(

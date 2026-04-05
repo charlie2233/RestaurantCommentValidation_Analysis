@@ -85,6 +85,9 @@
 ### `qsr-audit forecast-baseline --metric <metric_name>`
 
 - Purpose: run leakage-safe offline baselines on a forecast panel.
+- Evaluation semantics:
+  - multi-step holdouts use a fixed-origin training window, so later holdout actuals never feed earlier predictions back into baseline history
+  - seasonal naive runs only when the snapshot dates form a regular calendar cadence such as weekly, month-end, or quarter-end
 - Baselines:
   - naive last-value
   - seasonal naive when cadence and `--season-length` support it

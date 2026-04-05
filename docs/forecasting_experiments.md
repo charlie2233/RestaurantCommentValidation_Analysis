@@ -75,11 +75,17 @@ Before evaluating any foundation model, compare against:
 2. Seasonal naive forecast when a seasonal cadence exists.
 3. Simple rolling average or exponential smoothing baseline.
 
+In this scaffold, multi-step holdouts use a fixed-origin evaluation window. The
+full holdout horizon is predicted from the pre-holdout training window only, so
+later holdout actuals never leak into subsequent baseline predictions.
+
 If Chronos cannot beat these baselines on meaningful held-out periods, it
 should not advance.
 
 If cadence or sample depth does not support a given baseline, the experiment
 summary should say so explicitly instead of inventing a score.
+Regular cadence is calendar-aware: common month-end, quarter-end, and weekly
+series count as regular even when day gaps vary across calendar boundaries.
 
 ## Evaluation plan
 

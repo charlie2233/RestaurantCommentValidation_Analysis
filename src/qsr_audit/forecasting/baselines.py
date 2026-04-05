@@ -229,9 +229,20 @@ def _evaluate_baselines(
     rolling_window: int,
     smoothing_alpha: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Evaluate baselines against a fixed-origin holdout window.
+
+    The holdout horizon is scored without ever appending holdout actuals back into
+    the model history. Every prediction for a given brand is generated from the
+    pre-holdout training window only, so multi-step evaluation stays leakage-safe.
+    """
+
     by_brand = {
         brand_name: frame.sort_values("as_of_date", kind="stable").reset_index(drop=True)
         for brand_name, frame in panel.groupby("canonical_brand_name", sort=True)
+    }
+    train_by_brand = {
+        brand_name: frame.sort_values("as_of_date", kind="stable").reset_index(drop=True)
+        for brand_name, frame in split.train.groupby("canonical_brand_name", sort=True)
     }
     baseline_rows: list[dict[str, Any]] = []
     baseline_skip_reasons: defaultdict[str, list[str]] = defaultdict(list)
@@ -244,12 +255,13 @@ def _evaluate_baselines(
         if brand_name in split.dropped_brands:
             continue
         ordered = full_series.reset_index(drop=True)
+        train_history = train_by_brand[str(brand_name)]
+        history_values = train_history["metric_value"].tolist()
         regular_cadence = _has_regular_cadence(ordered["as_of_date"])
-        test_count = len(split.test.loc[split.test["canonical_brand_name"] == brand_name])
-        test_start = len(ordered) - test_count
-        for idx in range(test_start, len(ordered)):
-            history = ordered.iloc[:idx]
-            row = ordered.iloc[idx]
+        holdout_rows = split.test.loc[split.test["canonical_brand_name"] == brand_name].sort_values(
+            "as_of_date", kind="stable"
+        )
+        for horizon_step, (_, row) in enumerate(holdout_rows.iterrows()):
             actual = float(row["metric_value"])
             common = {
                 "baseline_date": str(row["as_of_date"]),
@@ -263,10 +275,9 @@ def _evaluate_baselines(
                 {
                     **common,
                     "baseline_name": "naive_last_value",
-                    "prediction": float(history.iloc[-1]["metric_value"]),
+                    "prediction": float(history_values[-1]),
                 }
             )
-            history_values = history["metric_value"].tolist()
             rolling_slice = history_values[-min(len(history_values), rolling_window) :]
             baseline_rows.append(
                 {
@@ -304,7 +315,11 @@ def _evaluate_baselines(
                     {
                         **common,
                         "baseline_name": "seasonal_naive",
-                        "prediction": float(history_values[-season_length]),
+                        "prediction": _seasonal_naive_forecast(
+                            history_values,
+                            horizon_step=horizon_step,
+                            season_length=season_length,
+                        ),
                     }
                 )
 
@@ -446,7 +461,12 @@ def _write_baseline_outputs(
 
 
 def _has_regular_cadence(dates: pd.Series) -> bool:
-    date_series = pd.to_datetime(dates).sort_values(kind="stable")
+    date_index = pd.DatetimeIndex(pd.to_datetime(dates).sort_values(kind="stable").unique())
+    if len(date_index) < 2:
+        return False
+    if len(date_index) >= 3 and pd.infer_freq(date_index) is not None:
+        return True
+    date_series = pd.Series(date_index).sort_values(kind="stable")
     diffs = date_series.diff().dropna()
     if diffs.empty:
         return False
@@ -466,6 +486,13 @@ def _exp_smoothing_forecast(values: list[float], *, alpha: float) -> float:
     for value in values[1:]:
         level = alpha * float(value) + (1 - alpha) * level
     return level
+
+
+def _seasonal_naive_forecast(
+    values: list[float], *, horizon_step: int, season_length: int
+) -> float:
+    seasonal_index = len(values) - season_length + (horizon_step % season_length)
+    return float(values[seasonal_index])
 
 
 def _scaled_abs_error(abs_error: float, scale: object) -> float | None:
