@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from qsr_audit.cli import app
 from typer.testing import CliRunner
@@ -61,5 +63,11 @@ def test_cli_help_is_descriptive(args: list[str], expected_snippets: list[str]) 
     result = runner.invoke(app, args)
 
     assert result.exit_code == 0
+    normalized_output = _normalize_help_output(result.stdout)
     for snippet in expected_snippets:
-        assert snippet in result.stdout
+        assert snippet in normalized_output
+
+
+def _normalize_help_output(text: str) -> str:
+    stripped = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    return re.sub(r"\s+", " ", stripped)
