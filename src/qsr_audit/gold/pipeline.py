@@ -79,7 +79,9 @@ def gate_gold_publish(
 
     resolved_settings = settings or Settings()
     resolved_gold_dir = (gold_dir or resolved_settings.data_gold).expanduser().resolve()
-    resolved_report_dir = (report_dir or (resolved_settings.reports_dir / "audit")).expanduser().resolve()
+    resolved_report_dir = (
+        (report_dir or (resolved_settings.reports_dir / "audit")).expanduser().resolve()
+    )
 
     inputs = load_gold_gate_inputs(gold_dir=resolved_gold_dir)
     decisions = build_gold_publish_decisions(inputs=inputs, policy=policy)
@@ -155,8 +157,8 @@ def build_gold_publish_decisions(
     decision_rows: list[dict[str, Any]] = []
     policy_map = policy.metric_policy_map()
     provenance_by_brand = _provenance_by_brand(inputs.provenance_registry)
-    validation_by_brand, missing_ai_brands, _extra_ai_brands, _auv_mismatch_brands = _validation_context(
-        inputs.validation_flags
+    validation_by_brand, missing_ai_brands, _extra_ai_brands, _auv_mismatch_brands = (
+        _validation_context(inputs.validation_flags)
     )
     brand_coverage = _brand_reference_coverage(inputs.reference_coverage)
     synthetic_by_brand_metric = _syntheticness_by_brand_metric(
@@ -233,8 +235,8 @@ def build_gold_gate_summary(
 ) -> dict[str, Any]:
     """Build the Gold publishing scorecard summary."""
 
-    _validation_by_brand, _missing_ai_brands, extra_ai_brands, auv_mismatch_brands = _validation_context(
-        inputs.validation_flags
+    _validation_by_brand, _missing_ai_brands, extra_ai_brands, auv_mismatch_brands = (
+        _validation_context(inputs.validation_flags)
     )
     advisory_only_metrics = [
         metric_policy.metric_name
@@ -333,7 +335,9 @@ def _evaluate_metric_decision(
     )
     provenance_payload = _provenance_payload(provenance_row)
 
-    reference_evidence_present = _reference_evidence_present(metric_policy=metric_policy, reconciled_row=row)
+    reference_evidence_present = _reference_evidence_present(
+        metric_policy=metric_policy, reconciled_row=row
+    )
     if metric_policy.require_reference_evidence and not reference_evidence_present:
         blocking_reasons.append("No external reference evidence was available for this metric.")
 
@@ -388,7 +392,8 @@ def _evaluate_metric_decision(
         if (
             reference_evidence_present
             and reconciliation_relative_error is not None
-            and reconciliation_relative_error > publish_policy.reconciliation_relative_error_hard_fail
+            and reconciliation_relative_error
+            > publish_policy.reconciliation_relative_error_hard_fail
         ):
             blocking_reasons.append(
                 f"Reconciliation relative error {reconciliation_relative_error:.2%} exceeds the "
@@ -401,7 +406,9 @@ def _evaluate_metric_decision(
         and metric_policy.metric_name in coverage_missing_metrics
         and metric_policy.require_reference_evidence
     ):
-        blocking_reasons.append("Reference coverage audit marked this metric as missing external coverage.")
+        blocking_reasons.append(
+            "Reference coverage audit marked this metric as missing external coverage."
+        )
 
     for finding in brand_findings:
         if not _validation_finding_applies_to_metric(finding, metric_policy.metric_name):
@@ -425,7 +432,9 @@ def _evaluate_metric_decision(
             warning_reasons.append(str(finding.get("message")))
 
     if canonical_brand_name in missing_ai_brands:
-        warning_reasons.append("AI strategy sheet is missing a corresponding row for this core brand.")
+        warning_reasons.append(
+            "AI strategy sheet is missing a corresponding row for this core brand."
+        )
 
     warning_reasons.extend(synthetic_warnings)
 
@@ -498,7 +507,11 @@ def _validation_context(
             missing_ai_brands.update(str(value) for value in details.get("missing_ai_brands", []))
         if check_name == "brand_alignment.extra_ai_brands":
             extra_ai_brands.update(str(value) for value in details.get("extra_ai_brands", []))
-        if check_name == "implied_auv_k" and row.get("severity") == "error" and brand_name is not None:
+        if (
+            check_name == "implied_auv_k"
+            and row.get("severity") == "error"
+            and brand_name is not None
+        ):
             auv_mismatch_brands.add(brand_name)
 
     return grouped, missing_ai_brands, sorted(extra_ai_brands), sorted(auv_mismatch_brands)
@@ -575,9 +588,15 @@ def _select_metric_provenance_row(
 
     if provenance_rows:
         for candidate in _sorted_provenance_rows(provenance_rows):
-            if reference_source_name and _clean_optional_text(candidate.get("source_name")) != reference_source_name:
+            if (
+                reference_source_name
+                and _clean_optional_text(candidate.get("source_name")) != reference_source_name
+            ):
                 continue
-            if reference_source_type and _clean_optional_text(candidate.get("source_type")) != reference_source_type:
+            if (
+                reference_source_type
+                and _clean_optional_text(candidate.get("source_type")) != reference_source_type
+            ):
                 continue
             return candidate
 
@@ -602,7 +621,9 @@ def _sorted_provenance_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         rows,
         key=lambda row: (
-            _to_float(row.get("confidence_score")) if _to_float(row.get("confidence_score")) is not None else -1.0,
+            _to_float(row.get("confidence_score"))
+            if _to_float(row.get("confidence_score")) is not None
+            else -1.0,
             str(row.get("as_of_date") or ""),
             str(row.get("source_name") or ""),
         ),
@@ -619,7 +640,9 @@ def _provenance_payload(row: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _reference_evidence_present(*, metric_policy: MetricGatePolicy, reconciled_row: dict[str, Any]) -> bool:
+def _reference_evidence_present(
+    *, metric_policy: MetricGatePolicy, reconciled_row: dict[str, Any]
+) -> bool:
     if metric_policy.reference_prefix is None:
         return False
     prefix = metric_policy.reference_prefix

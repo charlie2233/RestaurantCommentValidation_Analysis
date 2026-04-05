@@ -342,7 +342,9 @@ def test_gate_gold_makes_clean_external_row_publishable(tmp_path: Path) -> None:
 
 
 def test_gate_gold_blocks_missing_provenance_fields(tmp_path: Path) -> None:
-    _, settings = _write_gate_inputs(tmp_path, missing_mcd_provenance=True, include_auv_mismatch=False)
+    _, settings = _write_gate_inputs(
+        tmp_path, missing_mcd_provenance=True, include_auv_mismatch=False
+    )
 
     run = gate_gold_publish(settings=settings)
 
@@ -351,7 +353,10 @@ def test_gate_gold_blocks_missing_provenance_fields(tmp_path: Path) -> None:
         & (run.decisions["metric_name"] == "store_count")
     ].iloc[0]
     assert decision["publish_status"] == "blocked"
-    assert any("Required provenance fields are missing" in reason for reason in decision["blocking_reasons"])
+    assert any(
+        "Required provenance fields are missing" in reason
+        for reason in decision["blocking_reasons"]
+    )
 
 
 def test_gate_gold_keeps_estimated_operational_metrics_advisory(tmp_path: Path) -> None:
@@ -366,13 +371,17 @@ def test_gate_gold_keeps_estimated_operational_metrics_advisory(tmp_path: Path) 
     ]
     assert set(operational_rows["publish_status"]) == {"advisory"}
     assert set(operational_rows["source_type"]) == {"workbook"}
-    assert operational_rows["warning_reasons"].map(
-        lambda reasons: any("advisory-only" in reason for reason in reasons)
-    ).all()
+    assert (
+        operational_rows["warning_reasons"]
+        .map(lambda reasons: any("advisory-only" in reason for reason in reasons))
+        .all()
+    )
 
 
 def test_gold_publish_scorecard_is_deterministic_and_has_expected_sections(tmp_path: Path) -> None:
-    _, settings = _write_gate_inputs(tmp_path, include_auv_mismatch=True, include_orphan_ai_brand=True)
+    _, settings = _write_gate_inputs(
+        tmp_path, include_auv_mismatch=True, include_orphan_ai_brand=True
+    )
 
     first_run = gate_gold_publish(settings=settings)
     first_markdown = first_run.artifacts.scorecard_markdown_path.read_text(encoding="utf-8")
@@ -393,7 +402,9 @@ def test_gold_publish_scorecard_is_deterministic_and_has_expected_sections(tmp_p
 
 
 def test_cli_gate_gold_writes_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _, settings = _write_gate_inputs(tmp_path, include_auv_mismatch=True, include_orphan_ai_brand=True)
+    _, settings = _write_gate_inputs(
+        tmp_path, include_auv_mismatch=True, include_orphan_ai_brand=True
+    )
 
     monkeypatch.setenv("QSR_DATA_RAW", str(settings.data_raw))
     monkeypatch.setenv("QSR_DATA_BRONZE", str(settings.data_bronze))

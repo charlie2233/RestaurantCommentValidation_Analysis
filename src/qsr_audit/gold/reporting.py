@@ -118,8 +118,7 @@ def render_gold_publish_scorecard(
     advisory_only_metrics = summary.get("advisory_only_metrics", [])
     if advisory_only_metrics:
         lines.append(
-            "- Advisory-only metrics under the current policy: "
-            + ", ".join(advisory_only_metrics)
+            "- Advisory-only metrics under the current policy: " + ", ".join(advisory_only_metrics)
         )
 
     lines.extend(["", "## Sample Decision Rows", ""])
@@ -159,7 +158,9 @@ def build_gold_publish_summary(
 ) -> dict[str, Any]:
     """Build a machine-readable summary for Gold publishing decisions."""
 
-    status_counts = decisions["publish_status"].value_counts().to_dict() if not decisions.empty else {}
+    status_counts = (
+        decisions["publish_status"].value_counts().to_dict() if not decisions.empty else {}
+    )
     block_counter = _reason_counter(decisions, "blocking_reasons")
     warning_counter = _reason_counter(decisions, "warning_reasons")
 
@@ -181,7 +182,7 @@ def build_gold_publish_summary(
                     "blocked": int(counts.get("blocked", 0)),
                 }
             )
-    brand_readiness.sort(key=lambda row: (row["canonical_brand_name"]))
+    brand_readiness.sort(key=lambda row: row["canonical_brand_name"])
 
     metric_readiness = []
     if not decisions.empty:
@@ -201,15 +202,19 @@ def build_gold_publish_summary(
     if not decisions.empty:
         missing_evidence = decisions[
             decisions["blocking_reasons"].map(
-                lambda reasons: "No external reference evidence was available for this metric."
-                in (reasons or [])
+                lambda reasons: (
+                    "No external reference evidence was available for this metric."
+                    in (reasons or [])
+                )
             )
         ]
         for metric_name, frame in missing_evidence.groupby("metric_name", dropna=False):
             metrics_without_external_evidence.append(
                 {
                     "metric_name": str(metric_name),
-                    "brands": sorted(str(value) for value in frame["canonical_brand_name"].dropna().unique()),
+                    "brands": sorted(
+                        str(value) for value in frame["canonical_brand_name"].dropna().unique()
+                    ),
                 }
             )
     metrics_without_external_evidence.sort(key=lambda row: row["metric_name"])
