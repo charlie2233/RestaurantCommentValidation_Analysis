@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.ingest import (
@@ -17,6 +15,7 @@ from qsr_audit.ingest import (
     parse_fte_range,
     parse_margin_range,
 )
+from typer.testing import CliRunner
 
 
 def _write_fixture_workbook(path: Path) -> None:

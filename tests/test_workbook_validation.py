@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.ingest import ingest_workbook
 from qsr_audit.validate import validate_workbook
+from typer.testing import CliRunner
 
 
 def _build_settings(tmp_path: Path) -> Settings:
@@ -208,9 +207,13 @@ def test_validate_workbook_warns_for_extra_ai_brand_from_raw_workbook(tmp_path: 
         "AI strategy sheet includes brands that are not present in the Top 30 core table: "
         "Sweetgreen"
     )
-    coverage_findings = [finding for finding in run.findings if finding.check_name == "brand_alignment.coverage"]
+    coverage_findings = [
+        finding for finding in run.findings if finding.check_name == "brand_alignment.coverage"
+    ]
     assert len(coverage_findings) == 1
-    assert coverage_findings[0].message == "AI sheet covers 2 of 2 core brands (0 missing; 1 extra)."
+    assert (
+        coverage_findings[0].message == "AI sheet covers 2 of 2 core brands (0 missing; 1 extra)."
+    )
 
 
 def test_cli_validate_workbook_writes_outputs(

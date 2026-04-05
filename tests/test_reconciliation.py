@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.reconcile import (
@@ -17,6 +15,7 @@ from qsr_audit.reconcile import (
     reconcile_core_metrics,
     resolve_brand_name,
 )
+from typer.testing import CliRunner
 
 
 def _build_settings(tmp_path: Path) -> Settings:
@@ -110,7 +109,7 @@ def _write_reference_file(path: Path) -> None:
                 "source_page": "12",
                 "source_excerpt": "McDonald's metrics",
             }
-    ]
+        ]
     ).to_csv(path, index=False)
 
 
@@ -162,7 +161,7 @@ def _write_partial_reference_file(path: Path) -> None:
 def _normalize_metric_list(value: object) -> list[str]:
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return []
-    if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
+    if hasattr(value, "tolist") and not isinstance(value, str | bytes):
         value = value.tolist()
     if isinstance(value, list):
         return [str(item) for item in value if str(item).strip()]
@@ -213,9 +212,10 @@ def test_reconcile_core_metrics_writes_gold_outputs_and_warnings(tmp_path: Path)
     assert reconciled.loc[1, "covered_metrics_count"] == 0
     assert _normalize_metric_list(reconciled.loc[0, "missing_metrics"]) == []
     assert "rank" in _normalize_metric_list(reconciled.loc[1, "missing_metrics"])
-    assert "provenance fields populated" in str(
-        reconciled.loc[0, "provenance_completeness_summary"]
-    ).lower()
+    assert (
+        "provenance fields populated"
+        in str(reconciled.loc[0, "provenance_completeness_summary"]).lower()
+    )
     assert "average confidence" in str(reconciled.loc[0, "provenance_confidence_summary"]).lower()
     assert "No reference coverage found for `Taco Bell`." in run.warnings
 
@@ -235,7 +235,9 @@ def test_load_reference_catalog_warns_on_partially_filled_reference_csv(tmp_path
     assert not catalog.empty
     assert len(registry.records) >= 1
     assert warnings
-    assert any("missing" in warning.lower() or "incomplete" in warning.lower() for warning in warnings)
+    assert any(
+        "missing" in warning.lower() or "incomplete" in warning.lower() for warning in warnings
+    )
     assert "Taco Bell" in catalog["canonical_brand_name"].tolist()
 
 
@@ -254,7 +256,10 @@ def test_audit_reference_coverage_writes_outputs_and_reports_empty_reference(
     )
     assert partial_run.artifacts.coverage_parquet_path.exists()
     assert partial_run.artifacts.coverage_markdown_path.exists()
-    assert any("missing" in warning.lower() or "incomplete" in warning.lower() for warning in partial_run.warnings)
+    assert any(
+        "missing" in warning.lower() or "incomplete" in warning.lower()
+        for warning in partial_run.warnings
+    )
 
     coverage = pd.read_parquet(partial_run.artifacts.coverage_parquet_path)
     assert "brand" in set(coverage["coverage_kind"].dropna())
@@ -284,8 +289,7 @@ def test_reconcile_core_metrics_explicitly_reports_empty_reference_coverage(
     reconciled = pd.read_parquet(run.artifacts.reconciled_core_metrics_path)
     assert reconciled["reference_source_count"].tolist() == [0, 0]
     assert all(
-        _normalize_metric_list(value) == []
-        for value in reconciled["missing_metrics"].tolist()
+        _normalize_metric_list(value) == [] for value in reconciled["missing_metrics"].tolist()
     ) or all(reconciled["reference_source_count"] == 0)
     assert "No reference coverage found for `McDonalds`." in run.warnings
     assert "No reference coverage found for `Taco Bell`." in run.warnings

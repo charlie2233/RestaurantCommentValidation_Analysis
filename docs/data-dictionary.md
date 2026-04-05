@@ -61,6 +61,13 @@ Extracted free-text findings from the notes sheet.
 
 ## Gold datasets
 
+### Manual reference CSV guidance
+
+- Leave unknown values blank.
+- Preserve original provenance in `source_name`, `source_url_or_doc_id`, and `as_of_date`.
+- Mark `method_reported_or_estimated` as `reported` or `estimated` whenever possible.
+- Do not infer or backfill missing values just to make a row look complete.
+
 ### `data/gold/validation_flags.parquet`
 
 Structured validation findings across schema checks, invariants, and cross-sheet consistency.
@@ -114,7 +121,7 @@ Reference intake coverage audit across brand, metric, and source-type views.
 
 | Field | Meaning |
 |---|---|
-| `coverage_kind` | `brand`, `metric`, `source_type`, or `warning` summary row |
+| `coverage_kind` | `brand`, `metric`, or `source_type` |
 | `brand_name`, `canonical_brand_name` | Brand identifiers for brand-level coverage rows |
 | `metric_name` | Metric name for metric-level coverage rows |
 | `source_type` | Source type for source-type coverage rows |
@@ -126,7 +133,7 @@ Reference intake coverage audit across brand, metric, and source-type views.
 | `provenance_completeness_score` | Normalized completeness score for the contributing rows |
 | `provenance_completeness_summary`, `provenance_confidence_summary` | Human-readable coverage and confidence summaries |
 | `warning` | Explicit missing-coverage or data-quality warning text |
-| `details` | JSON metadata such as matched source names or source types |
+| `details` | JSON metadata such as matched source names, source types, or missing-brand lists |
 
 ### `data/gold/provenance_registry.parquet`
 

@@ -234,9 +234,7 @@ def reconcile_command(
     console.print(f"Provenance registry: {run.artifacts.provenance_registry_path}")
     console.print(f"Summary: {run.artifacts.reconciliation_summary_path}")
     console.print(f"Reference coverage parquet: {run.artifacts.reference_coverage_parquet_path}")
-    console.print(
-        f"Reference coverage markdown: {run.artifacts.reference_coverage_markdown_path}"
-    )
+    console.print(f"Reference coverage markdown: {run.artifacts.reference_coverage_markdown_path}")
 
 
 @app.command("audit-reference")

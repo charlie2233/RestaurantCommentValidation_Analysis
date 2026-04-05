@@ -341,6 +341,14 @@ def build_reference_coverage(
             "provenance_completeness_summary": completeness_summary,
             "provenance_confidence_summary": confidence_summary,
             "warning": warning,
+            "details": {
+                "source_names": sorted(
+                    str(value) for value in matched_refs["source_name"].dropna().unique()
+                ),
+                "source_types": sorted(
+                    str(value) for value in matched_refs["source_type"].dropna().unique()
+                ),
+            },
         }
         rows.append(brand_row)
         brand_rows.append(brand_row)
@@ -387,13 +395,16 @@ def build_reference_coverage(
                 "covered_metrics_count": None,
                 "covered_brand_count": len(covered_brands),
                 "missing_brand_count": len(missing_brands),
-                "coverage_rate": (len(covered_brands) / total_core_brands) if total_core_brands else 0.0,
+                "coverage_rate": (len(covered_brands) / total_core_brands)
+                if total_core_brands
+                else 0.0,
                 "missing_metrics": None,
                 "missing_brands": missing_brands,
                 "source_type_names": sorted(
                     str(value)
                     for value in reference_frame.loc[
-                        reference_frame[REFERENCE_METRIC_COLUMNS[metric_name]].notna(), "source_type"
+                        reference_frame[REFERENCE_METRIC_COLUMNS[metric_name]].notna(),
+                        "source_type",
                     ]
                     .dropna()
                     .unique()
@@ -402,6 +413,10 @@ def build_reference_coverage(
                 "provenance_completeness_summary": None,
                 "provenance_confidence_summary": None,
                 "warning": warning,
+                "details": {
+                    "covered_brands": covered_brands,
+                    "missing_brands": missing_brands,
+                },
             }
         )
 
@@ -417,7 +432,9 @@ def build_reference_coverage(
             if not subset.empty and subset[column_name].notna().any()
         ]
         missing_metric_names = [
-            metric_name for metric_name in REFERENCE_METRIC_COLUMNS if metric_name not in covered_metric_names
+            metric_name
+            for metric_name in REFERENCE_METRIC_COLUMNS
+            if metric_name not in covered_metric_names
         ]
         warning = None
         if subset.empty:
@@ -465,6 +482,10 @@ def build_reference_coverage(
                 "provenance_completeness_summary": completeness_summary,
                 "provenance_confidence_summary": confidence_summary,
                 "warning": warning,
+                "details": {
+                    "source_file_name": file_name,
+                    "covered_metric_names": covered_metric_names,
+                },
             }
         )
 
@@ -490,7 +511,7 @@ def write_reference_coverage_outputs(
     report_path = report_dir / "reference_coverage.md"
 
     parquet_frame = coverage_frame.copy()
-    for column in ("missing_metrics", "missing_brands", "source_type_names"):
+    for column in ("missing_metrics", "missing_brands", "source_type_names", "details"):
         if column in parquet_frame.columns:
             parquet_frame[column] = parquet_frame[column].map(_json_dump_or_none)
     parquet_frame.to_parquet(coverage_path, index=False)
@@ -536,7 +557,9 @@ def render_reference_coverage_report(
     ]
 
     if brand_rows.empty:
-        lines.append("| _(none)_ | 0 | 0 | all | No reference coverage. | No confidence scores were reported. |")
+        lines.append(
+            "| _(none)_ | 0 | 0 | all | No reference coverage. | No confidence scores were reported. |"
+        )
     else:
         for row in brand_rows.to_dict(orient="records"):
             missing_metrics = ", ".join(row.get("missing_metrics") or []) or "-"
@@ -599,9 +622,13 @@ def summarize_provenance_quality(reference_rows: pd.DataFrame) -> tuple[float, s
     possible_count = len(reference_rows.index) * len(PROVENANCE_COMPLETENESS_COLUMNS)
     for column_name in PROVENANCE_COMPLETENESS_COLUMNS:
         if column_name == "confidence_score":
-            filled_count += int(pd.to_numeric(reference_rows[column_name], errors="coerce").notna().sum())
+            filled_count += int(
+                pd.to_numeric(reference_rows[column_name], errors="coerce").notna().sum()
+            )
         else:
-            filled_count += int(reference_rows[column_name].fillna("").astype(str).str.strip().ne("").sum())
+            filled_count += int(
+                reference_rows[column_name].fillna("").astype(str).str.strip().ne("").sum()
+            )
 
     completeness_score = filled_count / possible_count if possible_count else 0.0
     completeness_summary = (

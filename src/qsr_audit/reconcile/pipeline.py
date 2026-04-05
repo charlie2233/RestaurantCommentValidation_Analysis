@@ -287,9 +287,7 @@ def audit_reference_coverage(
         settings.data_gold if settings is not None else Path("data/gold")
     )
     resolved_report_dir = report_dir or (
-        (settings.reports_dir / "reference")
-        if settings is not None
-        else Path("reports/reference")
+        (settings.reports_dir / "reference") if settings is not None else Path("reports/reference")
     )
     artifacts = write_reference_coverage_outputs(
         coverage_frame,
@@ -305,6 +303,8 @@ def audit_reference_coverage(
         warnings=warnings,
         artifacts=artifacts,
     )
+
+
 def load_reference_catalog(
     reference_dir: Path,
 ) -> tuple[pd.DataFrame, list[str], ProvenanceRegistry]:
