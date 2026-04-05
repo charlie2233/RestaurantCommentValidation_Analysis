@@ -9,6 +9,9 @@ import typer
 from rich.console import Console
 
 from qsr_audit.config import get_settings
+from qsr_audit.forecasting import build_forecast_panel as build_forecast_panel_pipeline
+from qsr_audit.forecasting import forecast_baselines as forecast_baselines_pipeline
+from qsr_audit.forecasting import snapshot_gold_history as snapshot_gold_history_pipeline
 from qsr_audit.gold import gate_gold_publish as gate_gold_publish_pipeline
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
@@ -106,6 +109,38 @@ ReportOutputOption = Annotated[
         dir_okay=True,
         path_type=Path,
         help="Directory where analyst-facing reports should be written.",
+    ),
+]
+
+MetricNameOption = Annotated[
+    str,
+    typer.Option(
+        ...,
+        "--metric",
+        help="Metric name from Gold publish decisions, such as store_count, system_sales, or auv.",
+    ),
+]
+
+SnapshotDateOption = Annotated[
+    str,
+    typer.Option(
+        ...,
+        "--as-of-date",
+        help="Snapshot date in ISO format (YYYY-MM-DD).",
+    ),
+]
+
+ExperimentOutputOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--output-root",
+        file_okay=False,
+        dir_okay=True,
+        path_type=Path,
+        help=(
+            "Directory for non-analyst-facing experiment artifacts. Defaults to "
+            "`artifacts/forecasting/<metric>`."
+        ),
     ),
 ]
 
@@ -272,6 +307,121 @@ def gate_gold_command() -> None:
     console.print(f"Blocked parquet: {run.artifacts.blocked_path}")
     console.print(f"Scorecard: {run.artifacts.scorecard_markdown_path}")
     console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
+
+
+@app.command("snapshot-gold")
+def snapshot_gold_command(
+    as_of_date: SnapshotDateOption,
+    include_advisory: bool = typer.Option(
+        False,
+        "--include-advisory",
+        help="Include advisory rows in the snapshot. Blocked rows remain excluded.",
+    ),
+) -> None:
+    """Snapshot current Gold publish outputs into dated history for future forecasting."""
+
+    try:
+        run = snapshot_gold_history_pipeline(
+            as_of_date=as_of_date,
+            settings=get_settings(),
+            include_advisory=include_advisory,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print(f"[bold blue]Gold snapshot captured[/bold blue] - {run.as_of_date}")
+    console.print(f"Included statuses: {', '.join(run.included_statuses)}")
+    console.print(f"Snapshot rows: {run.row_count}")
+    console.print(f"Snapshot parquet: {run.artifacts.snapshot_rows_path}")
+    console.print(f"Snapshot manifest: {run.artifacts.manifest_path}")
+    console.print(f"History index: {run.artifacts.index_path}")
+
+
+@app.command("build-forecast-panel")
+def build_forecast_panel_command(
+    metric_name: MetricNameOption,
+    output_root: ExperimentOutputOption = None,
+    include_advisory: bool = typer.Option(
+        False,
+        "--include-advisory",
+        help="Include advisory snapshot rows in the panel. Blocked rows remain excluded.",
+    ),
+    allow_short_history: bool = typer.Option(
+        False,
+        "--allow-short-history",
+        help="Testing or local scaffolding override for very short history panels.",
+    ),
+) -> None:
+    """Assemble a forecast-ready longitudinal panel from Gold snapshot history."""
+
+    try:
+        run = build_forecast_panel_pipeline(
+            metric_name=metric_name,
+            settings=get_settings(),
+            output_root=output_root,
+            include_advisory=include_advisory,
+            allow_short_history=allow_short_history,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print(f"[bold blue]Forecast panel built[/bold blue] - {metric_name}")
+    console.print(f"Periods: {run.summary['period_count']}")
+    console.print(f"Brands: {run.summary['brand_count']}")
+    console.print(f"Rows: {run.summary['row_count']}")
+    console.print(f"Panel parquet: {run.artifacts.panel_parquet_path}")
+    console.print(f"Panel metadata: {run.artifacts.metadata_json_path}")
+    console.print(f"Panel summary: {run.artifacts.summary_markdown_path}")
+
+
+@app.command("forecast-baseline")
+def forecast_baseline_command(
+    metric_name: MetricNameOption,
+    output_root: ExperimentOutputOption = None,
+    include_advisory: bool = typer.Option(
+        False,
+        "--include-advisory",
+        help="Include advisory snapshot rows in the experiment panel. Blocked rows remain excluded.",
+    ),
+    allow_short_history: bool = typer.Option(
+        False,
+        "--allow-short-history",
+        help="Testing or local scaffolding override for very short history panels.",
+    ),
+    holdout_periods: int = typer.Option(
+        1,
+        "--holdout-periods",
+        min=1,
+        help="Number of trailing holdout periods per brand for evaluation.",
+    ),
+    season_length: int | None = typer.Option(
+        None,
+        "--season-length",
+        min=2,
+        help="Optional seasonal length for seasonal naive evaluation when cadence supports it.",
+    ),
+) -> None:
+    """Run leakage-safe offline forecast baselines, including seasonal naive when supported."""
+
+    try:
+        run = forecast_baselines_pipeline(
+            metric_name=metric_name,
+            settings=get_settings(),
+            output_root=output_root,
+            include_advisory=include_advisory,
+            allow_short_history=allow_short_history,
+            holdout_periods=holdout_periods,
+            season_length=season_length,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print(f"[bold blue]Forecast baseline evaluation complete[/bold blue] - {metric_name}")
+    console.print(f"Panel parquet: {run.artifacts.panel_parquet_path}")
+    console.print(f"Split metadata: {run.artifacts.split_metadata_json_path}")
+    console.print(f"Metrics JSON: {run.artifacts.metrics_json_path}")
+    console.print(f"Metrics CSV: {run.artifacts.metrics_csv_path}")
+    console.print(f"Summary: {run.artifacts.summary_markdown_path}")
 
 
 @app.command()

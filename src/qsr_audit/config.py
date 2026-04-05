@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     data_silver: Path = Path("data/silver")
     data_gold: Path = Path("data/gold")
     data_reference: Path = Path("data/reference")
+    gold_history_dir: Path = Path("data/gold/history")
 
     reports_dir: Path = Path("reports")
     strategy_dir: Path = Path("strategy")
+    artifacts_dir: Path = Path("artifacts")
 
     log_level: str = "INFO"
 

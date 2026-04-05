@@ -15,6 +15,8 @@ pipeline today.
   `strategy/` unless a separate hardening change is approved.
 - Evaluation plans should focus on measurable task fit, failure modes, and
   operational cost, not hype.
+- Forecast experiments should use repeated-period Gold history assembled through
+  `snapshot-gold` and `build-forecast-panel`, not raw workbook snapshots.
 
 ## Forecasting candidates
 
@@ -30,6 +32,14 @@ The Chronos paper on Hugging Face is
 Treat raw Chronos as a baseline, not as a complete forecasting system. If
 weather, promotions, or other covariates matter, a pure zero-shot univariate
 model may not be enough.
+
+Current repo posture:
+
+- Chronos is not part of the supported production CLI.
+- The repo now includes only an opt-in readiness guard for offline experiments.
+- CI should never auto-download Chronos weights.
+- Benchmark artifacts belong under `artifacts/forecasting/`, not `reports/` or
+  `strategy/`.
 
 ## ASR candidates
 

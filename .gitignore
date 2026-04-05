@@ -48,3 +48,6 @@ reports/*
 # Strategy outputs
 strategy/*
 !strategy/.gitkeep
+
+# Forecasting / experiment artifacts
+artifacts/*
