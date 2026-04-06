@@ -1,5 +1,21 @@
 """Retrieval-only RAG experiment helpers."""
 
+from qsr_audit.rag.authoring import (
+    DEFAULT_RAG_BENCHMARKS_ROOT,
+    RagBenchmarkAdjudicationArtifacts,
+    RagBenchmarkAdjudicationRun,
+    RagBenchmarkAuthoringSummaryArtifacts,
+    RagBenchmarkAuthoringSummaryRun,
+    RagBenchmarkInitArtifacts,
+    RagBenchmarkInitRun,
+    RagJudgmentBootstrapArtifacts,
+    RagJudgmentBootstrapRun,
+    adjudicate_rag_benchmark,
+    bootstrap_rag_judgments,
+    init_rag_benchmark,
+    summarize_rag_benchmark_authoring,
+    validate_rag_reviewer_file,
+)
 from qsr_audit.rag.benchmark import (
     DEFAULT_RETRIEVAL_BENCHMARK,
     RagBenchmarkArtifacts,
@@ -9,11 +25,16 @@ from qsr_audit.rag.benchmark import (
     render_rag_benchmark_summary,
 )
 from qsr_audit.rag.benchmark_pack import (
+    ADJUDICATED_JUDGMENTS_FILENAME,
+    BENCHMARK_METADATA_FILENAME,
     BENCHMARK_PACK_VERSION,
+    JUDGMENTS_FILENAME,
     RagBenchmarkPack,
     RagBenchmarkValidationArtifacts,
     RagBenchmarkValidationRun,
+    build_authoring_query_specs_from_pack,
     load_rag_benchmark_pack,
+    resolve_preferred_judgments_path,
     validate_rag_benchmark_pack,
 )
 from qsr_audit.rag.corpus import (
@@ -35,21 +56,37 @@ from qsr_audit.rag.retrieval import (
 )
 
 __all__ = [
+    "ADJUDICATED_JUDGMENTS_FILENAME",
     "BENCHMARK_PACK_VERSION",
+    "BENCHMARK_METADATA_FILENAME",
+    "DEFAULT_RAG_BENCHMARKS_ROOT",
     "DEFAULT_RETRIEVAL_BENCHMARK",
+    "JUDGMENTS_FILENAME",
+    "RagBenchmarkAdjudicationArtifacts",
+    "RagBenchmarkAdjudicationRun",
     "RagBenchmarkArtifacts",
+    "RagBenchmarkAuthoringSummaryArtifacts",
+    "RagBenchmarkAuthoringSummaryRun",
+    "RagBenchmarkInitArtifacts",
+    "RagBenchmarkInitRun",
     "RagBenchmarkPack",
     "RagBenchmarkRun",
     "RagBenchmarkValidationArtifacts",
     "RagBenchmarkValidationRun",
     "RagCorpusArtifacts",
     "RagCorpusRun",
+    "RagJudgmentBootstrapArtifacts",
+    "RagJudgmentBootstrapRun",
     "RagRerankRun",
     "RagSearchRun",
+    "adjudicate_rag_benchmark",
     "available_reranker_names",
     "available_retriever_names",
     "build_rag_corpus",
+    "bootstrap_rag_judgments",
+    "build_authoring_query_specs_from_pack",
     "eval_rag_retrieval",
+    "init_rag_benchmark",
     "inspect_rag_benchmark_query",
     "load_rag_benchmark_pack",
     "load_rag_corpus",
@@ -57,7 +94,10 @@ __all__ = [
     "prepare_retriever",
     "rag_search",
     "rerank_results",
+    "resolve_preferred_judgments_path",
     "resolve_rag_corpus_path",
     "render_rag_benchmark_summary",
+    "summarize_rag_benchmark_authoring",
     "validate_rag_benchmark_pack",
+    "validate_rag_reviewer_file",
 ]

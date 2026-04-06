@@ -9,11 +9,16 @@ import pandas as pd
 import pytest
 from qsr_audit.cli import app
 from qsr_audit.rag import (
+    adjudicate_rag_benchmark,
     build_rag_corpus,
     eval_rag_retrieval,
+    init_rag_benchmark,
     inspect_rag_benchmark_query,
+    summarize_rag_benchmark_authoring,
     validate_rag_benchmark_pack,
+    validate_rag_reviewer_file,
 )
+from qsr_audit.rag.authoring import bootstrap_rag_judgments
 from typer.testing import CliRunner
 
 from tests.helpers import build_settings
@@ -424,6 +429,28 @@ def _write_benchmark_pack(benchmark_dir: Path) -> None:
             }
         ]
     ).to_csv(benchmark_dir / "query_groups.csv", index=False)
+
+
+def _write_reviewer_judgments(
+    benchmark_dir: Path,
+    reviewer: str,
+    rows: list[dict[str, str]],
+) -> Path:
+    reviewer_dir = benchmark_dir / "reviewers" / reviewer
+    reviewer_dir.mkdir(parents=True, exist_ok=True)
+    reviewer_path = reviewer_dir / "judgments.csv"
+    pd.DataFrame(rows, columns=JUDGMENT_COLUMNS).to_csv(reviewer_path, index=False)
+    return reviewer_path
+
+
+JUDGMENT_COLUMNS = [
+    "query_id",
+    "doc_id",
+    "chunk_id",
+    "relevance_label",
+    "rationale",
+    "must_appear_in_top_k",
+]
 
 
 def test_build_rag_corpus_excludes_raw_bronze_silver_by_default(tmp_path: Path) -> None:
@@ -1203,3 +1230,321 @@ def test_inspect_rag_benchmark_query_returns_metadata_and_failure_source(tmp_pat
     assert "expected_relevant_chunks" in payload
     assert "diagnosis" in payload
     assert "answer" not in payload
+
+
+def test_init_rag_benchmark_creates_expected_pack_structure(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+
+    run = init_rag_benchmark(
+        name="analyst-pack",
+        settings=settings,
+        root_dir=tmp_path / "data" / "rag_benchmarks",
+        authors=("Alice", "Bob"),
+        notes="Draft benchmark pack.",
+    )
+
+    assert run.benchmark_dir.name == "analyst-pack"
+    assert run.artifacts.metadata_path.exists()
+    assert run.artifacts.readme_path.exists()
+    assert run.artifacts.checklist_path.exists()
+    assert run.artifacts.queries_path.exists()
+    assert run.artifacts.judgments_path.exists()
+    metadata = json.loads(run.artifacts.metadata_path.read_text(encoding="utf-8"))
+    assert metadata["benchmark_version"] == "v1"
+    assert metadata["authors"] == ["Alice", "Bob"]
+    assert metadata["pack_status"] == "draft"
+    assert metadata["corpus_manifest_path"].endswith("artifacts/rag/corpus/manifest.json")
+    assert "reviewers/<name>/judgments.csv" in run.artifacts.readme_path.read_text(encoding="utf-8")
+
+
+def test_bootstrap_rag_judgments_does_not_overwrite_final_judgments(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    original_judgments = (benchmark_dir / "judgments.csv").read_text(encoding="utf-8")
+
+    run = bootstrap_rag_judgments(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+        retriever_name="bm25",
+        top_k=2,
+    )
+
+    assert run.artifacts.candidate_results_parquet_path.exists()
+    assert run.artifacts.candidate_results_csv_path.exists()
+    assert run.artifacts.judgment_workspace_csv_path.exists()
+    assert run.artifacts.bootstrap_manifest_path.exists()
+    assert (benchmark_dir / "judgments.csv").read_text(encoding="utf-8") == original_judgments
+    workspace = pd.read_csv(
+        run.artifacts.judgment_workspace_csv_path, dtype=str, keep_default_na=False
+    )
+    assert "suggestion_status" in workspace.columns
+    assert "candidate_suggestion" in set(workspace["suggestion_status"])
+
+
+def test_validate_rag_reviewer_file_fails_cleanly_on_malformed_submission(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "alice",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "",
+                "must_appear_in_top_k": "top-two",
+            }
+        ],
+    )
+
+    run = validate_rag_reviewer_file(
+        benchmark_dir=benchmark_dir,
+        reviewer="alice",
+        settings=settings,
+        corpus_path=corpus_path,
+    )
+
+    assert not run.passed
+    categories = {issue["category"] for issue in run.issues}
+    assert "missing_rationale" in categories
+    assert "invalid_must_appear_threshold" in categories
+    assert run.artifacts.validation_json_path.exists()
+    assert run.pack.judgments_path.name == "judgments.csv"
+    assert "reviewer-alice" in str(run.artifacts.validation_markdown_path)
+
+
+def test_adjudicate_rag_benchmark_detects_conflicts_and_keeps_pack_in_review(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "alice",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "This should be a direct hit.",
+                "must_appear_in_top_k": "1",
+            }
+        ],
+    )
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "bob",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "relevant",
+                "rationale": "Still relevant, but weaker.",
+                "must_appear_in_top_k": "2",
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="Reviewer conflicts remain unresolved"):
+        adjudicate_rag_benchmark(
+            benchmark_dir=benchmark_dir,
+            settings=settings,
+            corpus_path=corpus_path,
+            force=False,
+        )
+
+    adjudication_root = settings.artifacts_dir / "rag" / "benchmarks" / "adjudication"
+    conflict_runs = list(adjudication_root.iterdir())
+    assert len(conflict_runs) == 1
+    conflicts = pd.read_csv(conflict_runs[0] / "conflicts.csv", dtype=str, keep_default_na=False)
+    assert "relevance_label_conflict" in conflicts["conflict_type"].iloc[0]
+    assert not (benchmark_dir / "adjudicated_judgments.csv").exists()
+    metadata = json.loads((benchmark_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["pack_status"] == "in_review"
+
+
+def test_adjudicate_rag_benchmark_preserves_doc_and_chunk_semantics(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_multi_chunk_doc_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    benchmark_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "doc-level",
+                "query_text": "Find the blocked Taco Bell decision document.",
+                "language": "en",
+                "notes": "",
+                "brand_filter": "Taco Bell",
+                "metric_filter": "auv",
+                "publish_status_scope": "blocked",
+                "expected_source_kinds": "gold_publish_decision",
+                "ambiguity_flag": "false",
+                "requires_citation": "true",
+            },
+            {
+                "query_id": "chunk-level",
+                "query_text": "Find the appendix chunk for Taco Bell.",
+                "language": "en",
+                "notes": "",
+                "brand_filter": "Taco Bell",
+                "metric_filter": "auv",
+                "publish_status_scope": "blocked",
+                "expected_source_kinds": "gold_publish_decision",
+                "ambiguity_flag": "false",
+                "requires_citation": "true",
+            },
+        ]
+    ).to_csv(benchmark_dir / "queries.csv", index=False)
+    pd.DataFrame(columns=JUDGMENT_COLUMNS).to_csv(benchmark_dir / "judgments.csv", index=False)
+    pd.DataFrame(columns=["query_id", "filter_key", "filter_value", "notes"]).to_csv(
+        benchmark_dir / "filters.csv", index=False
+    )
+    pd.DataFrame(columns=["query_id", "query_group", "notes"]).to_csv(
+        benchmark_dir / "query_groups.csv", index=False
+    )
+    (benchmark_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "benchmark_version": "v1",
+                "created_at": "2026-04-06T00:00:00+00:00",
+                "corpus_manifest_path": "artifacts/rag/corpus/manifest.json",
+                "authors": ["Alice", "Bob"],
+                "pack_status": "draft",
+                "notes": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+    reviewer_rows = [
+        {
+            "query_id": "doc-level",
+            "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+            "chunk_id": "",
+            "relevance_label": "highly_relevant",
+            "rationale": "Any chunk from the document is acceptable.",
+            "must_appear_in_top_k": "1",
+        },
+        {
+            "query_id": "chunk-level",
+            "doc_id": "",
+            "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-002",
+            "relevance_label": "highly_relevant",
+            "rationale": "Only the appendix chunk should satisfy this query.",
+            "must_appear_in_top_k": "1",
+        },
+    ]
+    _write_reviewer_judgments(benchmark_dir, "alice", reviewer_rows)
+    _write_reviewer_judgments(benchmark_dir, "bob", reviewer_rows)
+
+    run = adjudicate_rag_benchmark(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+        force=False,
+    )
+
+    adjudicated = pd.read_csv(
+        run.artifacts.adjudicated_judgments_path, dtype=str, keep_default_na=False
+    )
+    doc_row = adjudicated.loc[adjudicated["query_id"] == "doc-level"].iloc[0]
+    chunk_row = adjudicated.loc[adjudicated["query_id"] == "chunk-level"].iloc[0]
+    assert doc_row["doc_id"] == "gold-publish-decision-taco-bell-auv-blocked"
+    assert doc_row["chunk_id"] == ""
+    assert chunk_row["doc_id"] == ""
+    assert chunk_row["chunk_id"] == "gold-publish-decision-taco-bell-auv-blocked::chunk-002"
+    assert run.metadata["pack_status"] == "adjudicated"
+
+
+def test_summarize_rag_benchmark_authoring_is_deterministic(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    summary_one = summarize_rag_benchmark_authoring(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+    )
+    summary_two = summarize_rag_benchmark_authoring(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+    )
+
+    one = dict(summary_one.summary)
+    two = dict(summary_two.summary)
+    one.pop("built_at_utc", None)
+    two.pop("built_at_utc", None)
+    assert one == two
+    markdown = summary_one.artifacts.summary_markdown_path.read_text(encoding="utf-8")
+    assert "## Unjudged Queries" in markdown
+    assert "## Under-Covered Query Groups" in markdown
+    assert "## Query Groups Without Hard Negatives" in markdown
+    assert summary_one.artifacts.summary_json_path.exists()
+    assert summary_one.artifacts.coverage_rows_csv_path.exists()
+    assert not str(summary_one.artifacts.summary_json_path).startswith(str(settings.reports_dir))
+    assert not str(summary_one.artifacts.summary_json_path).startswith(str(settings.strategy_dir))
+
+
+def test_eval_rag_retrieval_prefers_adjudicated_judgments_when_present(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    pd.DataFrame(columns=JUDGMENT_COLUMNS).to_csv(benchmark_dir / "judgments.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "Adjudicated blocked KPI decision.",
+                "must_appear_in_top_k": "1",
+            }
+        ]
+    ).to_csv(benchmark_dir / "adjudicated_judgments.csv", index=False)
+    (benchmark_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "benchmark_version": "v1",
+                "created_at": "2026-04-06T00:00:00+00:00",
+                "corpus_manifest_path": "artifacts/rag/corpus/manifest.json",
+                "authors": ["Alice"],
+                "pack_status": "adjudicated",
+                "notes": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run = eval_rag_retrieval(
+        settings=settings,
+        corpus_path=corpus_path,
+        benchmark_dir=benchmark_dir,
+        retrievers=("bm25",),
+        top_k=2,
+    )
+
+    assert run.summary["judgments_source"] == "adjudicated_judgments.csv"
+    assert run.summary["benchmark_pack_status"] == "adjudicated"
+    assert run.metrics.loc[run.metrics["retriever_name"] == "bm25"].iloc[0]["status"] == "ok"

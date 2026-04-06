@@ -112,6 +112,29 @@
   - `artifacts/rag/corpus/corpus.jsonl`
   - `artifacts/rag/corpus/manifest.json`
 
+### `qsr-audit init-rag-benchmark --name <pack-name>`
+
+- Purpose: initialize a local analyst benchmark pack under `data/rag_benchmarks/<pack-name>/`.
+- Outputs:
+  - `metadata.json`
+  - `README.md`
+  - `checklist.md`
+  - copied CSV templates for `queries.csv`, `judgments.csv`, `filters.csv`, and `query_groups.csv`
+
+### `qsr-audit bootstrap-rag-judgments --benchmark-dir <path>`
+
+- Purpose: run first-pass retrieval and write suggestion-only reviewer work files.
+- Guardrails:
+  - suggestions are not ground truth
+  - does not overwrite the pack-level `judgments.csv`
+  - writes working files under `data/rag_benchmarks/<pack>/working/`
+- Primary outputs:
+  - `working/query_specs.json`
+  - `working/candidate_results.parquet`
+  - `working/candidate_results.csv`
+  - `working/judgment_workspace.csv`
+  - `working/bootstrap_manifest.json`
+
 ### `qsr-audit validate-rag-benchmark --benchmark-dir <path>`
 
 - Purpose: validate an analyst-authored benchmark pack against the current
@@ -132,6 +155,15 @@
   - `artifacts/rag/benchmarks/validation/validation_summary.md`
   - `artifacts/rag/benchmarks/validation/query_specs.json`
 
+### `qsr-audit validate-rag-reviewer-file --benchmark-dir <path> --reviewer <name>`
+
+- Purpose: validate one reviewer-specific `reviewers/<name>/judgments.csv` file against the current vetted corpus.
+- Validation semantics:
+  - reviewer rows must still use valid `query_id`, `doc_id`, and `chunk_id` references
+  - missing rationale and malformed `must_appear_in_top_k` values remain validation errors
+- Primary outputs:
+  - reviewer-scoped validation artifacts under `artifacts/rag/benchmarks/validation/<pack>/reviewer-<name>/`
+
 ### `qsr-audit eval-rag-retrieval`
 
 - Purpose: benchmark retrieval-only baselines over the default smoke fixture or
@@ -148,6 +180,8 @@
   - reranking remains opt-in
   - dense retrieval is skipped in CI
   - reranking is skipped in CI when weights are unavailable
+  - prefers `adjudicated_judgments.csv` when present
+  - warns when the pack is still `draft` or `in_review`
   - writes only under `artifacts/rag/benchmarks/`
 - Primary outputs:
   - `artifacts/rag/benchmarks/metrics.json`
@@ -157,6 +191,27 @@
   - `artifacts/rag/benchmarks/summary.md`
   - `artifacts/rag/benchmarks/query_bucket_metrics.csv`
   - `artifacts/rag/benchmarks/rerank_delta.csv` when reranking is enabled
+
+### `qsr-audit adjudicate-rag-benchmark --benchmark-dir <path>`
+
+- Purpose: compare reviewer judgments, write conflict reports, and emit `adjudicated_judgments.csv` when safe.
+- Guardrails:
+  - reviewer files are preserved
+  - unresolved conflicts block `adjudicated` status unless `--force` is used
+  - doc-level judgments remain doc-level; chunk-level judgments remain exact
+- Primary outputs:
+  - `artifacts/rag/benchmarks/adjudication/<run_id>/conflicts.csv`
+  - `artifacts/rag/benchmarks/adjudication/<run_id>/agreement_summary.json`
+  - `artifacts/rag/benchmarks/adjudication/<run_id>/agreement_summary.md`
+  - `data/rag_benchmarks/<pack>/adjudicated_judgments.csv` when written
+
+### `qsr-audit summarize-rag-benchmark-authoring --benchmark-dir <path>`
+
+- Purpose: summarize benchmark authoring coverage, unjudged queries, and missing slice coverage.
+- Primary outputs:
+  - `artifacts/rag/benchmarks/authoring/<pack>/summary.json`
+  - `artifacts/rag/benchmarks/authoring/<pack>/summary.md`
+  - `artifacts/rag/benchmarks/authoring/<pack>/coverage_rows.csv`
 
 ### `qsr-audit inspect-rag-benchmark --query-id <id> --benchmark-dir <path>`
 
@@ -212,9 +267,13 @@ qsr-audit forecast-baseline --metric system_sales
 ## Retrieval experiment example
 
 ```bash
+qsr-audit init-rag-benchmark --name my-pack --author alice
 qsr-audit build-rag-corpus
-qsr-audit validate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
+qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
 qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
 ```

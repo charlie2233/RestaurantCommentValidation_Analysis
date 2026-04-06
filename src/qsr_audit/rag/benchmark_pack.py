@@ -16,6 +16,10 @@ from qsr_audit.rag.retrieval import row_matches_filters
 
 BENCHMARK_PACK_VERSION = "v1"
 DEFAULT_BENCHMARK_VALIDATION_SUBDIR = Path("rag/benchmarks/validation")
+BENCHMARK_METADATA_FILENAME = "metadata.json"
+JUDGMENTS_FILENAME = "judgments.csv"
+ADJUDICATED_JUDGMENTS_FILENAME = "adjudicated_judgments.csv"
+ALLOWED_PACK_STATUSES = {"draft", "in_review", "adjudicated"}
 
 QUERY_COLUMNS = [
     "query_id",
@@ -79,10 +83,12 @@ class RagBenchmarkPack:
 
     version: str
     benchmark_dir: Path
+    metadata: dict[str, Any]
     queries: pd.DataFrame
     judgments: pd.DataFrame
     filters: pd.DataFrame
     query_groups: pd.DataFrame
+    judgments_path: Path
 
 
 @dataclass(frozen=True)
@@ -105,7 +111,11 @@ class RagBenchmarkValidationRun:
     artifacts: RagBenchmarkValidationArtifacts
 
 
-def load_rag_benchmark_pack(benchmark_dir: Path) -> RagBenchmarkPack:
+def load_rag_benchmark_pack(
+    benchmark_dir: Path,
+    *,
+    judgments_path: Path | None = None,
+) -> RagBenchmarkPack:
     """Load a benchmark pack directory with required and optional CSV files."""
 
     resolved_dir = benchmark_dir.expanduser().resolve()
@@ -114,8 +124,14 @@ def load_rag_benchmark_pack(benchmark_dir: Path) -> RagBenchmarkPack:
             f"Benchmark directory `{resolved_dir}` was not found or is not a directory."
         )
 
+    metadata = load_rag_benchmark_metadata(resolved_dir)
+    resolved_judgments_path = (
+        _resolve_pack_path(resolved_dir, judgments_path)
+        if judgments_path is not None
+        else resolved_dir / JUDGMENTS_FILENAME
+    )
     queries = _read_csv(resolved_dir / "queries.csv", QUERY_COLUMNS, required=True)
-    judgments = _read_csv(resolved_dir / "judgments.csv", JUDGMENT_COLUMNS, required=True)
+    judgments = _read_csv(resolved_judgments_path, JUDGMENT_COLUMNS, required=True)
     filters = _read_csv(resolved_dir / "filters.csv", FILTER_COLUMNS, required=False)
     query_groups = _read_csv(
         resolved_dir / "query_groups.csv",
@@ -125,10 +141,12 @@ def load_rag_benchmark_pack(benchmark_dir: Path) -> RagBenchmarkPack:
     return RagBenchmarkPack(
         version=BENCHMARK_PACK_VERSION,
         benchmark_dir=resolved_dir,
+        metadata=metadata,
         queries=queries,
         judgments=judgments,
         filters=filters,
         query_groups=query_groups,
+        judgments_path=resolved_judgments_path,
     )
 
 
@@ -138,20 +156,32 @@ def validate_rag_benchmark_pack(
     corpus: pd.DataFrame,
     settings: Settings | None = None,
     output_root: Path | None = None,
+    judgments_path: Path | None = None,
+    require_judgments: bool = True,
 ) -> RagBenchmarkValidationRun:
     """Validate a benchmark pack and resolve it into normalized query specs."""
 
-    pack = load_rag_benchmark_pack(benchmark_dir)
+    pack = load_rag_benchmark_pack(
+        benchmark_dir,
+        judgments_path=judgments_path,
+    )
     issues: list[dict[str, Any]] = []
 
     _validate_queries(pack.queries, issues)
     _validate_query_text_intent_conflicts(pack.queries, issues)
     _validate_filters(pack.filters, pack.queries, issues)
     _validate_query_groups(pack.query_groups, pack.queries, issues)
-    _validate_judgments(pack.judgments, pack.queries, corpus, issues)
+    if require_judgments:
+        _validate_judgments(pack.judgments, pack.queries, corpus, issues)
 
     passed = not any(issue["severity"] == "error" for issue in issues)
-    query_specs = _build_query_specs(pack=pack, corpus=corpus, issues=issues) if passed else []
+    query_specs = []
+    if passed:
+        query_specs = (
+            _build_query_specs(pack=pack, corpus=corpus, issues=issues)
+            if require_judgments
+            else build_authoring_query_specs_from_pack(pack)
+        )
 
     resolved_settings = settings or Settings()
     resolved_output_root = _resolve_validation_output_root(
@@ -183,6 +213,86 @@ def build_query_specs_from_pack(
     return _build_query_specs(pack=pack, corpus=corpus, issues=[])
 
 
+def build_authoring_query_specs_from_pack(pack: RagBenchmarkPack) -> list[dict[str, Any]]:
+    """Build query specs from query metadata only, without requiring judgments."""
+
+    filters_by_query: dict[str, list[dict[str, str]]] = {}
+    for row in pack.filters.to_dict(orient="records"):
+        filters_by_query.setdefault(row["query_id"], []).append(row)
+
+    query_groups_by_query: dict[str, list[str]] = {}
+    for row in pack.query_groups.to_dict(orient="records"):
+        query_groups_by_query.setdefault(row["query_id"], []).append(row["query_group"])
+
+    return [
+        _build_metadata_only_query_spec(
+            row=row,
+            filters_by_query=filters_by_query,
+            query_groups_by_query=query_groups_by_query,
+        )
+        for row in pack.queries.to_dict(orient="records")
+    ]
+
+
+def load_rag_benchmark_metadata(benchmark_dir: Path) -> dict[str, Any]:
+    """Load pack metadata when present, or return a normalized draft default."""
+
+    metadata_path = benchmark_dir / BENCHMARK_METADATA_FILENAME
+    if not metadata_path.exists():
+        return build_default_rag_benchmark_metadata()
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Benchmark metadata `{metadata_path}` must contain a top-level object.")
+    return _normalize_benchmark_metadata(payload)
+
+
+def build_default_rag_benchmark_metadata(
+    *,
+    corpus_manifest_path: str | None = None,
+    authors: list[str] | None = None,
+    pack_status: str = "draft",
+    notes: str = "",
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Build the default metadata payload for a benchmark pack."""
+
+    normalized_status = pack_status.strip().lower() or "draft"
+    if normalized_status not in ALLOWED_PACK_STATUSES:
+        raise ValueError(f"Unsupported benchmark pack status `{pack_status}`.")
+    return {
+        "benchmark_version": BENCHMARK_PACK_VERSION,
+        "created_at": created_at or datetime.now(UTC).isoformat(),
+        "corpus_manifest_path": corpus_manifest_path or "artifacts/rag/corpus/manifest.json",
+        "authors": [str(author).strip() for author in (authors or []) if str(author).strip()],
+        "pack_status": normalized_status,
+        "notes": notes,
+    }
+
+
+def write_rag_benchmark_metadata(
+    benchmark_dir: Path,
+    metadata: dict[str, Any],
+) -> Path:
+    """Write normalized benchmark metadata to the pack directory."""
+
+    metadata_path = benchmark_dir / BENCHMARK_METADATA_FILENAME
+    metadata_path.write_text(
+        json.dumps(_normalize_benchmark_metadata(metadata), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return metadata_path
+
+
+def resolve_preferred_judgments_path(benchmark_dir: Path) -> Path:
+    """Prefer adjudicated judgments when present, otherwise use the draft root file."""
+
+    resolved_dir = benchmark_dir.expanduser().resolve()
+    adjudicated_path = resolved_dir / ADJUDICATED_JUDGMENTS_FILENAME
+    if adjudicated_path.exists():
+        return adjudicated_path
+    return resolved_dir / JUDGMENTS_FILENAME
+
+
 def render_rag_benchmark_validation_summary(
     *,
     benchmark_dir: Path,
@@ -202,8 +312,10 @@ def render_rag_benchmark_validation_summary(
         f"- Contract version: `{pack.version}`",
         f"- Benchmark dir: `{benchmark_dir}`",
         f"- Status: `{'PASS' if not errors else 'FAIL'}`",
+        f"- Pack status: `{pack.metadata.get('pack_status', 'draft')}`",
         f"- Queries: `{len(pack.queries.index)}`",
         f"- Judgments: `{len(pack.judgments.index)}`",
+        f"- Judgments source: `{pack.judgments_path.name}`",
         f"- Query specs built: `{len(query_specs)}`",
         "",
         "## Errors",
@@ -301,6 +413,12 @@ def _resolve_validation_output_root(*, settings: Settings, output_root: Path | N
                 f"paths like {forbidden_root}."
             )
     return resolved
+
+
+def _resolve_pack_path(benchmark_dir: Path, path: Path) -> Path:
+    if path.is_absolute():
+        return path.expanduser().resolve()
+    return (benchmark_dir / path).expanduser().resolve()
 
 
 def _validate_queries(queries: pd.DataFrame, issues: list[dict[str, Any]]) -> None:
@@ -502,6 +620,13 @@ def _validate_judgments(
                 "invalid_relevance_label",
                 f"Query `{query_id or '<missing>'}` uses invalid relevance_label `{row.get('relevance_label')}`.",
             )
+        if not row.get("rationale", "").strip():
+            _issue(
+                issues,
+                "error",
+                "missing_rationale",
+                f"Query `{query_id or '<missing>'}` is missing `rationale` for `{chunk_id or doc_id or '<missing>'}`.",
+            )
         if doc_id and doc_id not in known_doc_ids:
             _issue(
                 issues,
@@ -583,13 +708,9 @@ def _build_query_specs(
     for row in pack.judgments.to_dict(orient="records"):
         judgments_by_query.setdefault(row["query_id"], []).append(row)
 
-    filters_by_query: dict[str, list[dict[str, Any]]] = {}
-    for row in pack.filters.to_dict(orient="records"):
-        filters_by_query.setdefault(row["query_id"], []).append(row)
-
-    query_groups_by_query: dict[str, list[str]] = {}
-    for row in pack.query_groups.to_dict(orient="records"):
-        query_groups_by_query.setdefault(row["query_id"], []).append(row["query_group"])
+    metadata_only_specs = {
+        spec["query_id"]: spec for spec in build_authoring_query_specs_from_pack(pack)
+    }
 
     chunk_to_doc_id = corpus.set_index("chunk_id")["doc_id"].to_dict() if not corpus.empty else {}
     doc_to_chunk_ids: dict[str, list[str]] = {}
@@ -608,23 +729,7 @@ def _build_query_specs(
                 f"Query `{query_id}` has no judgments and will be skipped during evaluation.",
             )
             continue
-
-        metadata_filters: dict[str, Any] = {}
-        brand_filter_values = _split_multivalue(row.get("brand_filter", ""))
-        if brand_filter_values:
-            metadata_filters["brand_names"] = brand_filter_values
-        metric_filter_values = _split_multivalue(row.get("metric_filter", ""))
-        if metric_filter_values:
-            metadata_filters["metric_names"] = metric_filter_values
-        publish_status_filter = _publish_status_filter(row.get("publish_status_scope", ""))
-        if publish_status_filter:
-            metadata_filters["publish_status"] = publish_status_filter
-        source_kind_values = _split_multivalue(row.get("expected_source_kinds", ""))
-        if source_kind_values:
-            metadata_filters["source_kind"] = source_kind_values
-
-        for filter_row in filters_by_query.get(query_id, []):
-            metadata_filters[filter_row["filter_key"]] = _filter_value(filter_row["filter_value"])
+        metadata_spec = metadata_only_specs[query_id]
 
         relevant_chunk_ids: set[str] = set()
         relevant_doc_ids: set[str] = set()
@@ -663,27 +768,9 @@ def _build_query_specs(
                 if judgment.get("must_appear_in_top_k"):
                     must_appear_doc_ids_in_top_k[doc_id] = int(judgment["must_appear_in_top_k"])
 
-        query_groups = sorted(set(query_groups_by_query.get(query_id, [])))
-        built_in_buckets = _derive_query_buckets(
-            query=row,
-            metadata_filters=metadata_filters,
-            query_groups=query_groups,
-        )
         query_specs.append(
             {
-                "query_id": query_id,
-                "query": row["query_text"],
-                "language": row["language"],
-                "notes": row.get("notes") or None,
-                "metadata_filters": metadata_filters,
-                "brand_filter_values": brand_filter_values,
-                "metric_filter_values": metric_filter_values,
-                "expected_source_kinds": source_kind_values,
-                "publish_status_scope": row.get("publish_status_scope", "") or "all",
-                "ambiguity_flag": _parse_bool(row.get("ambiguity_flag", "")),
-                "requires_citation": _parse_bool(row.get("requires_citation", "")),
-                "query_groups": query_groups,
-                "query_buckets": built_in_buckets,
+                **metadata_spec,
                 "relevant_chunk_ids": sorted(relevant_chunk_ids),
                 "relevant_doc_ids": sorted(relevant_doc_ids),
                 "relevance_by_chunk_id": relevance_by_chunk_id,
@@ -695,6 +782,53 @@ def _build_query_specs(
             }
         )
     return query_specs
+
+
+def _build_metadata_only_query_spec(
+    *,
+    row: dict[str, str],
+    filters_by_query: dict[str, list[dict[str, str]]],
+    query_groups_by_query: dict[str, list[str]],
+) -> dict[str, Any]:
+    query_id = row["query_id"]
+    metadata_filters: dict[str, Any] = {}
+    brand_filter_values = _split_multivalue(row.get("brand_filter", ""))
+    if brand_filter_values:
+        metadata_filters["brand_names"] = brand_filter_values
+    metric_filter_values = _split_multivalue(row.get("metric_filter", ""))
+    if metric_filter_values:
+        metadata_filters["metric_names"] = metric_filter_values
+    publish_status_filter = _publish_status_filter(row.get("publish_status_scope", ""))
+    if publish_status_filter:
+        metadata_filters["publish_status"] = publish_status_filter
+    source_kind_values = _split_multivalue(row.get("expected_source_kinds", ""))
+    if source_kind_values:
+        metadata_filters["source_kind"] = source_kind_values
+
+    for filter_row in filters_by_query.get(query_id, []):
+        metadata_filters[filter_row["filter_key"]] = _filter_value(filter_row["filter_value"])
+
+    query_groups = sorted(set(query_groups_by_query.get(query_id, [])))
+    built_in_buckets = _derive_query_buckets(
+        query=row,
+        metadata_filters=metadata_filters,
+        query_groups=query_groups,
+    )
+    return {
+        "query_id": query_id,
+        "query": row["query_text"],
+        "language": row["language"],
+        "notes": row.get("notes") or None,
+        "metadata_filters": metadata_filters,
+        "brand_filter_values": brand_filter_values,
+        "metric_filter_values": metric_filter_values,
+        "expected_source_kinds": source_kind_values,
+        "publish_status_scope": row.get("publish_status_scope", "") or "all",
+        "ambiguity_flag": _parse_bool(row.get("ambiguity_flag", "")),
+        "requires_citation": _parse_bool(row.get("requires_citation", "")),
+        "query_groups": query_groups,
+        "query_buckets": built_in_buckets,
+    }
 
 
 def _resolve_judgment_chunk_ids(
@@ -869,6 +1003,35 @@ def _is_relative_to(path: Path, base: Path) -> bool:
     return True
 
 
+def _normalize_benchmark_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    baseline = build_default_rag_benchmark_metadata()
+    normalized = {
+        "benchmark_version": str(
+            payload.get("benchmark_version", baseline["benchmark_version"])
+        ).strip()
+        or baseline["benchmark_version"],
+        "created_at": str(payload.get("created_at", baseline["created_at"])).strip()
+        or baseline["created_at"],
+        "corpus_manifest_path": str(
+            payload.get("corpus_manifest_path", baseline["corpus_manifest_path"])
+        ).strip()
+        or baseline["corpus_manifest_path"],
+        "authors": [
+            str(author).strip()
+            for author in payload.get("authors", baseline["authors"])
+            if str(author).strip()
+        ],
+        "pack_status": str(payload.get("pack_status", baseline["pack_status"])).strip().lower()
+        or baseline["pack_status"],
+        "notes": str(payload.get("notes", baseline["notes"])),
+    }
+    if normalized["pack_status"] not in ALLOWED_PACK_STATUSES:
+        raise ValueError(
+            f"Benchmark metadata has unsupported pack_status `{normalized['pack_status']}`."
+        )
+    return normalized
+
+
 def benchmark_query_matches_row(query_spec: dict[str, Any], row: dict[str, Any]) -> bool:
     """Apply a normalized benchmark query's metadata filters to a corpus row."""
 
@@ -877,18 +1040,26 @@ def benchmark_query_matches_row(query_spec: dict[str, Any], row: dict[str, Any])
 
 __all__ = [
     "ALLOWED_RELEVANCE_LABELS",
+    "ADJUDICATED_JUDGMENTS_FILENAME",
     "BENCHMARK_PACK_VERSION",
+    "BENCHMARK_METADATA_FILENAME",
     "DEFAULT_BENCHMARK_VALIDATION_SUBDIR",
     "FILTER_COLUMNS",
     "JUDGMENT_COLUMNS",
+    "JUDGMENTS_FILENAME",
     "QUERY_COLUMNS",
     "QUERY_GROUP_COLUMNS",
     "RagBenchmarkPack",
     "RagBenchmarkValidationArtifacts",
     "RagBenchmarkValidationRun",
     "benchmark_query_matches_row",
+    "build_authoring_query_specs_from_pack",
+    "build_default_rag_benchmark_metadata",
     "build_query_specs_from_pack",
     "load_rag_benchmark_pack",
+    "load_rag_benchmark_metadata",
+    "resolve_preferred_judgments_path",
     "render_rag_benchmark_validation_summary",
     "validate_rag_benchmark_pack",
+    "write_rag_benchmark_metadata",
 ]

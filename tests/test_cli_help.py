@@ -26,7 +26,12 @@ from typer.testing import CliRunner
                 "build-forecast-panel",
                 "forecast-baseline",
                 "build-rag-corpus",
+                "init-rag-benchmark",
+                "bootstrap-rag-judgments",
                 "validate-rag-benchmark",
+                "validate-rag-reviewer-file",
+                "adjudicate-rag-benchmark",
+                "summarize-rag-benchmark-authoring",
                 "eval-rag-retrieval",
                 "inspect-rag-benchmark",
                 "rag-search",
@@ -102,6 +107,22 @@ from typer.testing import CliRunner
             ],
         ),
         (
+            ["init-rag-benchmark", "--help"],
+            [
+                "local benchmark pack",
+                "metadata",
+                "checklist",
+            ],
+        ),
+        (
+            ["bootstrap-rag-judgments", "--help"],
+            [
+                "candidate retrieval suggestions",
+                "manual benchmark judgment authoring",
+                "first-pass candidate chunks",
+            ],
+        ),
+        (
             ["validate-rag-benchmark", "--help"],
             [
                 "analyst-authored benchmark",
@@ -110,11 +131,35 @@ from typer.testing import CliRunner
             ],
         ),
         (
+            ["validate-rag-reviewer-file", "--help"],
+            [
+                "reviewer-specific",
+                "reviewers/<name>/judgments.csv",
+                "Validate one reviewer",
+            ],
+        ),
+        (
             ["eval-rag-retrieval", "--help"],
             [
                 "retrieval-only baselines",
                 "analyst-authored benchmark pack",
                 "dense-minilm",
+            ],
+        ),
+        (
+            ["adjudicate-rag-benchmark", "--help"],
+            [
+                "Compare reviewer judgments",
+                "adjudicated_judgments.csv",
+                "explicit override",
+            ],
+        ),
+        (
+            ["summarize-rag-benchmark-authoring", "--help"],
+            [
+                "authoring coverage",
+                "current judgment readiness",
+                "benchmark-dir",
             ],
         ),
         (
