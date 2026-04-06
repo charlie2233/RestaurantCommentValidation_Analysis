@@ -7,11 +7,22 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from qsr_audit.cli import app
-from qsr_audit.rag import build_rag_corpus, eval_rag_retrieval
 from typer.testing import CliRunner
 
+from qsr_audit.cli import app
+from qsr_audit.rag import build_rag_corpus, eval_rag_retrieval
 from tests.helpers import build_settings
+
+
+def _set_cli_env(monkeypatch: pytest.MonkeyPatch, settings) -> None:
+    monkeypatch.setenv("QSR_DATA_RAW", str(settings.data_raw))
+    monkeypatch.setenv("QSR_DATA_BRONZE", str(settings.data_bronze))
+    monkeypatch.setenv("QSR_DATA_SILVER", str(settings.data_silver))
+    monkeypatch.setenv("QSR_DATA_GOLD", str(settings.data_gold))
+    monkeypatch.setenv("QSR_DATA_REFERENCE", str(settings.data_reference))
+    monkeypatch.setenv("QSR_REPORTS_DIR", str(settings.reports_dir))
+    monkeypatch.setenv("QSR_STRATEGY_DIR", str(settings.strategy_dir))
+    monkeypatch.setenv("QSR_ARTIFACTS_DIR", str(settings.artifacts_dir))
 
 
 def _write_rag_source_artifacts(
@@ -336,6 +347,68 @@ def test_eval_rag_retrieval_bm25_runs_on_tiny_fixture(tmp_path: Path) -> None:
     assert "Metadata filter correctness" in summary
     assert "Latency ms" in summary
     assert "Index size bytes" in summary
+
+
+def test_rag_cli_default_build_then_eval_uses_default_corpus_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = build_settings(tmp_path)
+    _write_rag_source_artifacts(settings)
+    _set_cli_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    build_result = runner.invoke(app, ["build-rag-corpus"])
+    assert build_result.exit_code == 0
+
+    eval_result = runner.invoke(app, ["eval-rag-retrieval", "--retriever", "bm25"])
+    assert eval_result.exit_code == 0
+    assert (settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet").exists()
+    assert (settings.artifacts_dir / "rag" / "benchmarks" / "retrieval_metrics.json").exists()
+    assert "RAG retrieval benchmark complete" in eval_result.output
+
+
+def test_rag_cli_eval_accepts_relative_corpus_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = build_settings(tmp_path)
+    _write_rag_source_artifacts(settings)
+    _set_cli_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    build_result = runner.invoke(app, ["build-rag-corpus"])
+    assert build_result.exit_code == 0
+
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "eval-rag-retrieval",
+            "--corpus-path",
+            "artifacts/rag/corpus/corpus.parquet",
+            "--retriever",
+            "bm25",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "RAG retrieval benchmark complete" in result.output
+
+
+def test_rag_cli_eval_missing_default_corpus_errors_cleanly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = build_settings(tmp_path)
+    _set_cli_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["eval-rag-retrieval", "--retriever", "bm25"])
+
+    assert result.exit_code != 0
+    assert "build-rag-corpus" in result.output
+    assert "corpus parquet" in result.output
 
 
 def test_eval_rag_retrieval_dense_guard_skips_in_ci(
