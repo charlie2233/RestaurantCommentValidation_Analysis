@@ -250,6 +250,63 @@ def _write_manual_corpus(path: Path) -> pd.DataFrame:
     return corpus
 
 
+def _write_multi_chunk_doc_corpus(path: Path) -> pd.DataFrame:
+    corpus = pd.DataFrame(
+        [
+            {
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-001",
+                "source_kind": "gold_publish_decision",
+                "title": "Gold publish decision - Taco Bell - auv",
+                "text": "Taco Bell AUV blocked for external export because contradiction remains unresolved.",
+                "artifact_path": "data/gold/gold_publish_decisions.parquet",
+                "brand_names": json.dumps(["Taco Bell"]),
+                "metric_names": json.dumps(["auv"]),
+                "as_of_date": "2024-12-31",
+                "publish_status": "blocked",
+                "confidence_score": 0.4,
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-taco",
+                "metadata_json": json.dumps({"severity": "warning"}),
+            },
+            {
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-002",
+                "source_kind": "gold_publish_decision",
+                "title": "Gold publish decision - Taco Bell - details",
+                "text": "Annual source details and provenance appendix.",
+                "artifact_path": "data/gold/gold_publish_decisions.parquet",
+                "brand_names": json.dumps(["Taco Bell"]),
+                "metric_names": json.dumps(["auv"]),
+                "as_of_date": "2024-12-31",
+                "publish_status": "blocked",
+                "confidence_score": 0.4,
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-taco",
+                "metadata_json": json.dumps({"severity": "warning"}),
+            },
+            {
+                "doc_id": "gold-provenance-taco-bell",
+                "chunk_id": "gold-provenance-taco-bell::chunk-001",
+                "source_kind": "gold_provenance_registry",
+                "title": "Provenance record - Taco Bell",
+                "text": "Provenance record for Taco Bell from QSR 50 with annual ranking notes.",
+                "artifact_path": "data/gold/provenance_registry.parquet",
+                "brand_names": json.dumps(["Taco Bell"]),
+                "metric_names": json.dumps([]),
+                "as_of_date": "2024-12-31",
+                "publish_status": None,
+                "confidence_score": 0.92,
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-taco",
+                "metadata_json": json.dumps({"severity": "info"}),
+            },
+        ]
+    )
+    corpus.to_parquet(path, index=False)
+    return corpus
+
+
 def _write_benchmark_fixture(path: Path) -> None:
     path.write_text(
         json.dumps(
@@ -736,6 +793,43 @@ def test_validate_rag_benchmark_writes_required_sections(tmp_path: Path) -> None
     assert "## Required Files" in summary
 
 
+def test_validate_rag_benchmark_pack_malformed_rows_emit_structured_artifacts(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    corpus = _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+
+    queries = pd.read_csv(benchmark_dir / "queries.csv", dtype=str, keep_default_na=False)
+    queries.loc[0, "ambiguity_flag"] = "maybe"
+    queries.to_csv(benchmark_dir / "queries.csv", index=False)
+
+    judgments = pd.read_csv(benchmark_dir / "judgments.csv", dtype=str, keep_default_na=False)
+    judgments.loc[0, "must_appear_in_top_k"] = "top-two"
+    judgments.to_csv(benchmark_dir / "judgments.csv", index=False)
+
+    run = validate_rag_benchmark_pack(
+        benchmark_dir=benchmark_dir,
+        corpus=corpus,
+        settings=settings,
+    )
+
+    assert not run.passed
+    assert run.query_specs == []
+    categories = {issue["category"] for issue in run.issues}
+    assert "invalid_boolean_field" in categories
+    assert "invalid_must_appear_threshold" in categories
+    assert run.artifacts.validation_json_path.exists()
+    assert run.artifacts.validation_markdown_path.exists()
+    assert run.artifacts.query_specs_json_path.exists()
+    validation_payload = json.loads(run.artifacts.validation_json_path.read_text(encoding="utf-8"))
+    assert validation_payload["issue_count"] >= 2
+    assert json.loads(run.artifacts.query_specs_json_path.read_text(encoding="utf-8")) == []
+
+
 def test_eval_rag_retrieval_accepts_benchmark_dir_and_writes_bucket_metrics(tmp_path: Path) -> None:
     settings = build_settings(tmp_path)
     corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
@@ -758,6 +852,149 @@ def test_eval_rag_retrieval_accepts_benchmark_dir_and_writes_bucket_metrics(tmp_
     assert "metadata_filter_heavy" in set(bucket_metrics["bucket_name"])
     assert "cross_brand_comparison" in set(bucket_metrics["bucket_name"])
     assert "ambiguous" in set(bucket_metrics["bucket_name"])
+
+
+def test_eval_rag_retrieval_doc_level_judgment_is_satisfied_by_any_chunk_from_doc(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_multi_chunk_doc_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    benchmark_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "query_text": "Which Taco Bell KPI rows are blocked for external export?",
+                "language": "en",
+                "notes": "Doc-level judgment should be satisfied by any chunk from the doc.",
+                "brand_filter": "Taco Bell",
+                "metric_filter": "auv",
+                "publish_status_scope": "blocked",
+                "expected_source_kinds": "gold_publish_decision",
+                "ambiguity_flag": "false",
+                "requires_citation": "true",
+            }
+        ]
+    ).to_csv(benchmark_dir / "queries.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "Any chunk from the blocked decision doc should satisfy the judgment.",
+                "must_appear_in_top_k": "1",
+            }
+        ]
+    ).to_csv(benchmark_dir / "judgments.csv", index=False)
+
+    run = eval_rag_retrieval(
+        settings=settings,
+        corpus_path=corpus_path,
+        benchmark_dir=benchmark_dir,
+        retrievers=("bm25",),
+        top_k=1,
+    )
+
+    row = run.metrics.loc[run.metrics["stage"] == "retrieval"].iloc[0]
+    assert row["status"] == "ok"
+    assert row["recall_at_k"] == pytest.approx(1.0)
+
+
+def test_eval_rag_retrieval_chunk_level_judgment_requires_exact_chunk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_multi_chunk_doc_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    benchmark_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "query_text": "Why is Taco Bell blocked for external export because contradiction remains unresolved?",
+                "language": "en",
+                "notes": "Chunk-level judgment should require the exact judged chunk.",
+                "brand_filter": "Taco Bell",
+                "metric_filter": "auv",
+                "publish_status_scope": "blocked",
+                "expected_source_kinds": "gold_publish_decision",
+                "ambiguity_flag": "false",
+                "requires_citation": "true",
+            }
+        ]
+    ).to_csv(benchmark_dir / "queries.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "",
+                "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-002",
+                "relevance_label": "highly_relevant",
+                "rationale": "Only the second chunk should satisfy the exact chunk-level judgment.",
+                "must_appear_in_top_k": "1",
+            }
+        ]
+    ).to_csv(benchmark_dir / "judgments.csv", index=False)
+
+    from qsr_audit.rag.retrieval import RagSearchRun
+
+    def _fake_rag_search(**kwargs):
+        results = pd.DataFrame(
+            [
+                {
+                    "rank": 1,
+                    "score": 10.0,
+                    "retriever_name": "bm25",
+                    "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                    "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-001",
+                    "source_kind": "gold_publish_decision",
+                    "title": "Gold publish decision - Taco Bell - auv",
+                    "artifact_path": "data/gold/gold_publish_decisions.parquet",
+                    "brand_names": '["Taco Bell"]',
+                    "metric_names": '["auv"]',
+                    "as_of_date": "2024-12-31",
+                    "publish_status": "blocked",
+                    "confidence_score": 0.4,
+                    "source_name": "QSR 50",
+                    "source_url_or_doc_id": "doc-taco",
+                    "metadata_json": "{}",
+                    "citation_present": True,
+                    "filter_match": True,
+                    "text": "Taco Bell AUV blocked for external export because contradiction remains unresolved.",
+                }
+            ]
+        )
+        return RagSearchRun(
+            retriever_name="bm25",
+            results=results,
+            status="ok",
+            reason=None,
+            latency_ms=1.0,
+            index_size_bytes=123,
+        )
+
+    monkeypatch.setattr("qsr_audit.rag.benchmark.rag_search", _fake_rag_search)
+
+    run = eval_rag_retrieval(
+        settings=settings,
+        corpus_path=corpus_path,
+        benchmark_dir=benchmark_dir,
+        retrievers=("bm25",),
+        top_k=1,
+    )
+
+    row = run.metrics.loc[run.metrics["stage"] == "retrieval"].iloc[0]
+    assert row["recall_at_k"] == pytest.approx(0.0)
+    assert run.failure_cases[0]["query_id"] == "blocked-kpi"
+    assert run.failure_cases[0]["failure_source"] in {"ranking", "retrieval"}
 
 
 def test_eval_rag_retrieval_reranker_is_opt_in_and_skipped_in_ci(
@@ -787,6 +1024,39 @@ def test_eval_rag_retrieval_reranker_is_opt_in_and_skipped_in_ci(
     assert run.artifacts.rerank_delta_csv_path is not None
     rerank_delta = pd.read_csv(run.artifacts.rerank_delta_csv_path)
     assert rerank_delta["status"].iloc[0] == "skipped"
+
+
+@pytest.mark.parametrize("payload", ['"not-a-query-list"', "7"])
+def test_eval_rag_retrieval_rejects_malformed_benchmark_json_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: str,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_path = tmp_path / "benchmark.json"
+    benchmark_path.write_text(payload, encoding="utf-8")
+    _set_cli_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "eval-rag-retrieval",
+            "--corpus-path",
+            str(corpus_path),
+            "--benchmark-path",
+            str(benchmark_path),
+            "--retriever",
+            "bm25",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Benchmark JSON" in result.output
+    assert "`queries` list" in result.output
 
 
 def test_eval_rag_retrieval_reranker_preserves_or_improves_ordering(

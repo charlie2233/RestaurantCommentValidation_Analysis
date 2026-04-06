@@ -67,7 +67,11 @@ Guidance:
 
 - Prefer `chunk_id` when the exact passage matters.
 - Use `doc_id` when any chunk from the document is acceptable.
+- `chunk_id` judgments are exact. A same-document sibling chunk does not satisfy them.
+- `doc_id` judgments are satisfied when any retrieved chunk from that document appears.
 - Use `must_appear_in_top_k` sparingly for critical direct-hit expectations.
+- For `doc_id` judgments, `must_appear_in_top_k` is satisfied by any chunk from that document
+  appearing within the threshold.
 - Do not author judgments for raw workbook tabs, Bronze dumps, or Silver tables.
 
 ## Filters and query groups
@@ -92,6 +96,11 @@ qsr-audit validate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
 ```
+
+Validation failures that come from malformed field values, contradictory rows, or
+dangling references are reported in structured validation artifacts under
+`artifacts/rag/benchmarks/validation/`. Missing required files or badly shaped CSVs
+still fail immediately as hard load errors.
 
 ## When reranking is worth testing
 

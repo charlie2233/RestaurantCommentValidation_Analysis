@@ -397,7 +397,13 @@ def eval_rag_retrieval(
         query_metrics=all_query_metrics,
         top_k=top_k,
         query_count=len(queries),
-        judged_query_count=len([query for query in queries if query["relevant_chunk_ids"]]),
+        judged_query_count=len(
+            [
+                query
+                for query in queries
+                if query.get("relevant_chunk_ids") or query.get("relevant_doc_ids")
+            ]
+        ),
         benchmark_path=benchmark_path,
         benchmark_dir=benchmark_dir,
         corpus_path=resolved_corpus_path,
@@ -512,7 +518,8 @@ def inspect_rag_benchmark_query(
         diagnostic_top_k=max(candidate_top_k, top_k * 5),
     )
     relevant_rows = corpus.loc[
-        corpus["chunk_id"].isin(query_spec["relevant_chunk_ids"]),
+        corpus["chunk_id"].isin(query_spec["relevant_chunk_ids"])
+        | corpus["doc_id"].isin(query_spec.get("relevant_doc_ids") or []),
         [
             "doc_id",
             "chunk_id",
@@ -536,7 +543,9 @@ def inspect_rag_benchmark_query(
         "failure_source": failure_source,
     }
     if failure_source == "benchmark_labeling":
-        payload["diagnosis"] = "No judged relevant chunks matched the current corpus."
+        payload["diagnosis"] = (
+            "No judged relevant chunk or document targets matched the current corpus."
+        )
     elif failure_source == "filtering":
         payload["diagnosis"] = (
             "The retriever can find relevant material without filters, but the active metadata "
@@ -684,7 +693,7 @@ def render_rag_benchmark_summary(summary: dict[str, Any]) -> str:
             lines.append(
                 f"- `{failure['run_label']}` / `{failure['query_id']}`: "
                 f"{failure['failure_source'] or 'unknown'}"
-                f" - {failure['reason'] or 'retrieval missed one or more judged chunks.'}"
+                f" - {failure['reason'] or 'retrieval missed one or more judged targets.'}"
             )
 
     return "\n".join(lines) + "\n"
@@ -770,10 +779,9 @@ def _load_query_specs(
         ], None
 
     payload = json.loads(benchmark_path.read_text(encoding="utf-8"))
-    raw_queries = list(payload.get("queries", [])) if isinstance(payload, dict) else list(payload)
+    raw_queries = _coerce_benchmark_query_payload(payload=payload, benchmark_path=benchmark_path)
     return [
-        _normalize_fixture_query_spec(corpus=corpus, query_spec=dict(query))
-        for query in raw_queries
+        _normalize_fixture_query_spec(corpus=corpus, query_spec=query) for query in raw_queries
     ], None
 
 
@@ -781,6 +789,7 @@ def _normalize_fixture_query_spec(
     corpus: pd.DataFrame, query_spec: dict[str, Any]
 ) -> dict[str, Any]:
     relevant_chunk_ids = _resolve_relevant_chunk_ids(corpus, query_spec)
+    relevant_doc_ids = _resolve_relevant_doc_ids(query_spec)
     return {
         "query_id": query_spec["query_id"],
         "query": query_spec["query"],
@@ -796,10 +805,45 @@ def _normalize_fixture_query_spec(
         "query_groups": [],
         "query_buckets": [],
         "relevant_chunk_ids": sorted(relevant_chunk_ids),
+        "relevant_doc_ids": sorted(relevant_doc_ids),
         "relevance_by_chunk_id": {chunk_id: 1 for chunk_id in relevant_chunk_ids},
+        "relevance_by_doc_id": {doc_id: 1 for doc_id in relevant_doc_ids},
         "rationale_by_chunk_id": {},
-        "must_appear_in_top_k": {},
+        "rationale_by_doc_id": {},
+        "must_appear_chunk_ids_in_top_k": {},
+        "must_appear_doc_ids_in_top_k": {},
     }
+
+
+def _coerce_benchmark_query_payload(*, payload: Any, benchmark_path: Path) -> list[dict[str, Any]]:
+    if isinstance(payload, dict):
+        if "queries" not in payload:
+            raise ValueError(
+                f"Benchmark JSON `{benchmark_path}` must be a list of query objects or an "
+                "object containing a `queries` list."
+            )
+        raw_queries = payload["queries"]
+    elif isinstance(payload, list):
+        raw_queries = payload
+    else:
+        raise ValueError(
+            f"Benchmark JSON `{benchmark_path}` must be a list of query objects or an object "
+            "containing a `queries` list."
+        )
+
+    if not isinstance(raw_queries, list):
+        raise ValueError(
+            f"Benchmark JSON `{benchmark_path}` must provide `queries` as a list of objects."
+        )
+
+    normalized_queries: list[dict[str, Any]] = []
+    for index, query in enumerate(raw_queries):
+        if not isinstance(query, dict):
+            raise ValueError(
+                f"Benchmark JSON `{benchmark_path}` query at index {index} must be an object."
+            )
+        normalized_queries.append(dict(query))
+    return normalized_queries
 
 
 def _resolve_relevant_chunk_ids(corpus: pd.DataFrame, query_spec: dict[str, Any]) -> set[str]:
@@ -825,6 +869,11 @@ def _resolve_relevant_chunk_ids(corpus: pd.DataFrame, query_spec: dict[str, Any]
     return {str(chunk_id) for chunk_id in relevant_rows}
 
 
+def _resolve_relevant_doc_ids(query_spec: dict[str, Any]) -> set[str]:
+    explicit_doc_ids = query_spec.get("relevant_doc_ids") or []
+    return {str(doc_id) for doc_id in explicit_doc_ids}
+
+
 def _score_query_results(
     *,
     query_spec: dict[str, Any],
@@ -839,9 +888,13 @@ def _score_query_results(
     index_size_bytes: int,
 ) -> dict[str, Any]:
     relevant_chunk_ids = set(query_spec.get("relevant_chunk_ids") or [])
+    relevant_doc_ids = set(query_spec.get("relevant_doc_ids") or [])
     relevance_by_chunk_id = query_spec.get("relevance_by_chunk_id") or {}
-    must_appear_in_top_k = query_spec.get("must_appear_in_top_k") or {}
-    if not relevant_chunk_ids:
+    relevance_by_doc_id = query_spec.get("relevance_by_doc_id") or {}
+    must_appear_chunk_ids_in_top_k = query_spec.get("must_appear_chunk_ids_in_top_k") or {}
+    must_appear_doc_ids_in_top_k = query_spec.get("must_appear_doc_ids_in_top_k") or {}
+    total_judged_targets = len(relevant_chunk_ids) + len(relevant_doc_ids)
+    if total_judged_targets == 0:
         return _skipped_query_metric(
             query_spec=query_spec,
             retriever_name=retriever_name,
@@ -853,21 +906,48 @@ def _score_query_results(
         )
 
     hits = results["chunk_id"].tolist()
-    relevant_ranks = [
-        rank
-        for rank, chunk_id in enumerate(hits[:top_k], start=1)
-        if chunk_id in relevant_chunk_ids
-    ]
-    recall = len(relevant_ranks) / len(relevant_chunk_ids)
+    hit_doc_ids = results["doc_id"].tolist()
+    satisfied_chunk_ids: set[str] = set()
+    satisfied_doc_ids: set[str] = set()
+    relevant_ranks: list[int] = []
+
+    for rank, (chunk_id, doc_id) in enumerate(
+        zip(hits[:top_k], hit_doc_ids[:top_k], strict=False), start=1
+    ):
+        target_hit = False
+        if chunk_id in relevant_chunk_ids and chunk_id not in satisfied_chunk_ids:
+            satisfied_chunk_ids.add(chunk_id)
+            target_hit = True
+        if doc_id in relevant_doc_ids and doc_id not in satisfied_doc_ids:
+            satisfied_doc_ids.add(doc_id)
+            target_hit = True
+        if target_hit:
+            relevant_ranks.append(rank)
+
+    recall = (len(satisfied_chunk_ids) + len(satisfied_doc_ids)) / total_judged_targets
     mrr = (1 / relevant_ranks[0]) if relevant_ranks else 0.0
 
     dcg = 0.0
-    for rank, chunk_id in enumerate(hits[:top_k], start=1):
-        gain = relevance_by_chunk_id.get(chunk_id, 0)
+    dcg_seen_chunk_ids: set[str] = set()
+    dcg_seen_doc_ids: set[str] = set()
+    for rank, (chunk_id, doc_id) in enumerate(
+        zip(hits[:top_k], hit_doc_ids[:top_k], strict=False), start=1
+    ):
+        gain = 0
+        if chunk_id in relevant_chunk_ids and chunk_id not in dcg_seen_chunk_ids:
+            dcg_seen_chunk_ids.add(chunk_id)
+            gain += relevance_by_chunk_id.get(chunk_id, 0)
+        if doc_id in relevant_doc_ids and doc_id not in dcg_seen_doc_ids:
+            dcg_seen_doc_ids.add(doc_id)
+            gain += relevance_by_doc_id.get(doc_id, 0)
         if gain > 0:
             dcg += (2**gain - 1) / math.log2(rank + 1)
     ideal_gains = sorted(
-        (gain for gain in relevance_by_chunk_id.values() if gain > 0), reverse=True
+        [
+            *(gain for gain in relevance_by_chunk_id.values() if gain > 0),
+            *(gain for gain in relevance_by_doc_id.values() if gain > 0),
+        ],
+        reverse=True,
     )
     ideal_dcg = 0.0
     for rank, gain in enumerate(ideal_gains[:top_k], start=1):
@@ -880,17 +960,25 @@ def _score_query_results(
         if query_spec.get("metadata_filters") and not results.empty
         else None
     )
-    must_appear_violations = [
+    must_appear_chunk_violations = [
         chunk_id
-        for chunk_id, threshold in must_appear_in_top_k.items()
+        for chunk_id, threshold in must_appear_chunk_ids_in_top_k.items()
         if chunk_id not in hits or hits.index(chunk_id) + 1 > threshold
     ]
+    must_appear_doc_violations = [
+        doc_id
+        for doc_id, threshold in must_appear_doc_ids_in_top_k.items()
+        if doc_id not in hit_doc_ids or hit_doc_ids.index(doc_id) + 1 > threshold
+    ]
+    must_appear_violation_count = len(must_appear_chunk_violations) + len(
+        must_appear_doc_violations
+    )
     status = "ok"
     reasons: list[str] = []
     if recall < 1.0:
         status = "warning"
-        reasons.append("Not all judged chunks were retrieved in the top-k.")
-    if must_appear_violations:
+        reasons.append("Not all judged chunk or document targets were retrieved in the top-k.")
+    if must_appear_violation_count:
         status = "warning"
         reasons.append("One or more must-appear judgments missed their required top-k threshold.")
     if metadata_filter_correctness is not None and metadata_filter_correctness < 1.0:
@@ -919,8 +1007,8 @@ def _score_query_results(
         "failure_source": failure_source,
         "query_buckets": query_spec.get("query_buckets") or [],
         "ambiguity_flag": bool(query_spec.get("ambiguity_flag")),
-        "judged_relevant_count": len(relevant_chunk_ids),
-        "must_appear_violation_count": len(must_appear_violations),
+        "judged_relevant_count": total_judged_targets,
+        "must_appear_violation_count": must_appear_violation_count,
         "index_size_bytes": index_size_bytes,
     }
 
@@ -939,9 +1027,20 @@ def _annotate_result_rows(
     annotated = results.copy()
     annotated["query_id"] = query_spec["query_id"]
     annotated["query_text"] = query_spec["query"]
-    annotated["is_relevant"] = annotated["chunk_id"].isin(query_spec["relevant_chunk_ids"])
+    annotated["is_relevant"] = annotated.apply(
+        lambda row: row["chunk_id"] in set(query_spec.get("relevant_chunk_ids") or [])
+        or row["doc_id"] in set(query_spec.get("relevant_doc_ids") or []),
+        axis=1,
+    )
     annotated["relevance_label"] = annotated["chunk_id"].map(
         lambda chunk_id: query_spec["relevance_by_chunk_id"].get(chunk_id, 0)
+    )
+    annotated["relevance_label"] = annotated.apply(
+        lambda row: max(
+            int(row["relevance_label"]),
+            int((query_spec.get("relevance_by_doc_id") or {}).get(row["doc_id"], 0)),
+        ),
+        axis=1,
     )
     annotated["metadata_filters_json"] = json.dumps(
         query_spec.get("metadata_filters") or {},
@@ -972,16 +1071,27 @@ def _diagnose_failure_source(
     diagnostic_top_k: int,
 ) -> str | None:
     relevant_chunk_ids = set(query_spec.get("relevant_chunk_ids") or [])
-    if not relevant_chunk_ids:
+    relevant_doc_ids = set(query_spec.get("relevant_doc_ids") or [])
+    if not relevant_chunk_ids and not relevant_doc_ids:
         return "benchmark_labeling"
-    final_hits = final_results["chunk_id"].tolist()
-    must_appear_in_top_k = query_spec.get("must_appear_in_top_k") or {}
+    final_hit_chunk_ids = final_results["chunk_id"].tolist()
+    final_hit_doc_ids = final_results["doc_id"].tolist()
+    must_appear_chunk_ids_in_top_k = query_spec.get("must_appear_chunk_ids_in_top_k") or {}
+    must_appear_doc_ids_in_top_k = query_spec.get("must_appear_doc_ids_in_top_k") or {}
     must_appear_violation = any(
-        chunk_id not in final_hits or final_hits.index(chunk_id) + 1 > threshold
-        for chunk_id, threshold in must_appear_in_top_k.items()
+        chunk_id not in final_hit_chunk_ids or final_hit_chunk_ids.index(chunk_id) + 1 > threshold
+        for chunk_id, threshold in must_appear_chunk_ids_in_top_k.items()
+    ) or any(
+        doc_id not in final_hit_doc_ids or final_hit_doc_ids.index(doc_id) + 1 > threshold
+        for doc_id, threshold in must_appear_doc_ids_in_top_k.items()
     )
-    final_hits = set(final_results["chunk_id"].tolist())
-    if relevant_chunk_ids.intersection(final_hits) and not must_appear_violation:
+    satisfied_chunks = relevant_chunk_ids.intersection(set(final_hit_chunk_ids))
+    satisfied_docs = relevant_doc_ids.intersection(set(final_hit_doc_ids))
+    if (
+        len(satisfied_chunks) + len(satisfied_docs)
+        == len(relevant_chunk_ids) + len(relevant_doc_ids)
+        and not must_appear_violation
+    ):
         return None
 
     unfiltered_run = rag_search(
@@ -997,10 +1107,17 @@ def _diagnose_failure_source(
         return "retrieval"
 
     unfiltered_hits = set(unfiltered_run.results["chunk_id"].tolist())
+    unfiltered_doc_hits = set(unfiltered_run.results["doc_id"].tolist())
     filtered_hits = set(filtered_candidates["chunk_id"].tolist())
-    if not relevant_chunk_ids.intersection(unfiltered_hits):
+    filtered_doc_hits = set(filtered_candidates["doc_id"].tolist())
+    if not relevant_chunk_ids.intersection(unfiltered_hits) and not relevant_doc_ids.intersection(
+        unfiltered_doc_hits
+    ):
         return "retrieval"
-    if query_spec.get("metadata_filters") and not relevant_chunk_ids.intersection(filtered_hits):
+    if query_spec.get("metadata_filters") and (
+        not relevant_chunk_ids.intersection(filtered_hits)
+        and not relevant_doc_ids.intersection(filtered_doc_hits)
+    ):
         return "filtering"
     return "ranking"
 
@@ -1033,7 +1150,8 @@ def _skipped_query_metric(
         "failure_source": None,
         "query_buckets": query_spec.get("query_buckets") or [],
         "ambiguity_flag": bool(query_spec.get("ambiguity_flag")),
-        "judged_relevant_count": len(query_spec.get("relevant_chunk_ids") or []),
+        "judged_relevant_count": len(query_spec.get("relevant_chunk_ids") or [])
+        + len(query_spec.get("relevant_doc_ids") or []),
         "must_appear_violation_count": 0,
         "index_size_bytes": index_size_bytes,
     }

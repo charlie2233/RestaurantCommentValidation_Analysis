@@ -123,6 +123,10 @@
   - invalid relevance labels
   - malformed filters
   - empty packs
+- Validation semantics:
+  - malformed row values become structured validation issues when the pack can still be loaded
+  - `chunk_id` judgments require the exact chunk
+  - `doc_id` judgments are satisfied by any retrieved chunk from that document
 - Primary outputs:
   - `artifacts/rag/benchmarks/validation/validation_results.json`
   - `artifacts/rag/benchmarks/validation/validation_summary.md`

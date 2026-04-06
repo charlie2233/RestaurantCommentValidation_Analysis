@@ -150,8 +150,8 @@ def validate_rag_benchmark_pack(
     _validate_query_groups(pack.query_groups, pack.queries, issues)
     _validate_judgments(pack.judgments, pack.queries, corpus, issues)
 
-    query_specs = _build_query_specs(pack=pack, corpus=corpus, issues=issues)
     passed = not any(issue["severity"] == "error" for issue in issues)
+    query_specs = _build_query_specs(pack=pack, corpus=corpus, issues=issues) if passed else []
 
     resolved_settings = settings or Settings()
     resolved_output_root = _resolve_validation_output_root(
@@ -627,11 +627,16 @@ def _build_query_specs(
             metadata_filters[filter_row["filter_key"]] = _filter_value(filter_row["filter_value"])
 
         relevant_chunk_ids: set[str] = set()
+        relevant_doc_ids: set[str] = set()
         relevance_by_chunk_id: dict[str, int] = {}
+        relevance_by_doc_id: dict[str, int] = {}
         rationale_by_chunk_id: dict[str, str] = {}
-        must_appear_in_top_k: dict[str, int] = {}
+        rationale_by_doc_id: dict[str, str] = {}
+        must_appear_chunk_ids_in_top_k: dict[str, int] = {}
+        must_appear_doc_ids_in_top_k: dict[str, int] = {}
         for judgment in query_judgments:
-            judgment_chunk_ids = _resolve_judgment_chunk_ids(
+            judgment_chunk_ids = _resolve_judgment_chunk_ids(judgment=judgment)
+            judgment_doc_ids = _resolve_judgment_doc_ids(
                 judgment=judgment,
                 chunk_to_doc_id=chunk_to_doc_id,
                 doc_to_chunk_ids=doc_to_chunk_ids,
@@ -642,13 +647,21 @@ def _build_query_specs(
             )
             if label_score > 0:
                 relevant_chunk_ids.update(judgment_chunk_ids)
-            for chunk_id in judgment_chunk_ids:
+                relevant_doc_ids.update(judgment_doc_ids)
+            for chunk_id in sorted(judgment_chunk_ids):
                 prior_score = relevance_by_chunk_id.get(chunk_id, -1)
                 if label_score > prior_score:
                     relevance_by_chunk_id[chunk_id] = label_score
                     rationale_by_chunk_id[chunk_id] = judgment.get("rationale", "")
                 if judgment.get("must_appear_in_top_k"):
-                    must_appear_in_top_k[chunk_id] = int(judgment["must_appear_in_top_k"])
+                    must_appear_chunk_ids_in_top_k[chunk_id] = int(judgment["must_appear_in_top_k"])
+            for doc_id in sorted(judgment_doc_ids):
+                prior_score = relevance_by_doc_id.get(doc_id, -1)
+                if label_score > prior_score:
+                    relevance_by_doc_id[doc_id] = label_score
+                    rationale_by_doc_id[doc_id] = judgment.get("rationale", "")
+                if judgment.get("must_appear_in_top_k"):
+                    must_appear_doc_ids_in_top_k[doc_id] = int(judgment["must_appear_in_top_k"])
 
         query_groups = sorted(set(query_groups_by_query.get(query_id, [])))
         built_in_buckets = _derive_query_buckets(
@@ -672,9 +685,13 @@ def _build_query_specs(
                 "query_groups": query_groups,
                 "query_buckets": built_in_buckets,
                 "relevant_chunk_ids": sorted(relevant_chunk_ids),
+                "relevant_doc_ids": sorted(relevant_doc_ids),
                 "relevance_by_chunk_id": relevance_by_chunk_id,
+                "relevance_by_doc_id": relevance_by_doc_id,
                 "rationale_by_chunk_id": rationale_by_chunk_id,
-                "must_appear_in_top_k": must_appear_in_top_k,
+                "rationale_by_doc_id": rationale_by_doc_id,
+                "must_appear_chunk_ids_in_top_k": must_appear_chunk_ids_in_top_k,
+                "must_appear_doc_ids_in_top_k": must_appear_doc_ids_in_top_k,
             }
         )
     return query_specs
@@ -683,16 +700,26 @@ def _build_query_specs(
 def _resolve_judgment_chunk_ids(
     *,
     judgment: dict[str, str],
-    chunk_to_doc_id: dict[str, str],
-    doc_to_chunk_ids: dict[str, list[str]],
 ) -> list[str]:
     chunk_id = judgment.get("chunk_id", "")
     if chunk_id:
         return [chunk_id]
+    return []
+
+
+def _resolve_judgment_doc_ids(
+    *,
+    judgment: dict[str, str],
+    chunk_to_doc_id: dict[str, str],
+    doc_to_chunk_ids: dict[str, list[str]],
+) -> list[str]:
     doc_id = judgment.get("doc_id", "")
-    if not doc_id:
+    if doc_id and doc_id in doc_to_chunk_ids:
+        return [doc_id]
+    chunk_id = judgment.get("chunk_id", "")
+    if chunk_id and chunk_id in chunk_to_doc_id:
         return []
-    return doc_to_chunk_ids.get(doc_id, [])
+    return []
 
 
 def _derive_query_buckets(
