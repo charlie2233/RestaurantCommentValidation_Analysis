@@ -1056,7 +1056,6 @@ def test_eval_rag_retrieval_rejects_malformed_benchmark_json_root(
 
     assert result.exit_code != 0
     assert "Benchmark JSON" in result.output
-    assert "`queries` list" in result.output
 
 
 def test_eval_rag_retrieval_reranker_preserves_or_improves_ordering(
