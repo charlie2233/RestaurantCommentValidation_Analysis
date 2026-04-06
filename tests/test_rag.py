@@ -1380,6 +1380,136 @@ def test_adjudicate_rag_benchmark_detects_conflicts_and_keeps_pack_in_review(
     assert metadata["pack_status"] == "in_review"
 
 
+def test_adjudicate_rag_benchmark_single_reviewer_stays_provisional(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "alice",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "Single reviewer judgment.",
+                "must_appear_in_top_k": "1",
+            }
+        ],
+    )
+
+    run = adjudicate_rag_benchmark(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+        force=False,
+    )
+
+    assert run.metadata["pack_status"] == "in_review"
+    assert run.artifacts.adjudicated_judgments_path is None
+    assert run.agreement_summary["minimum_reviewer_coverage_met"] is False
+    assert run.agreement_summary["true_adjudication_eligible"] is False
+    metadata = json.loads((benchmark_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["pack_status"] == "in_review"
+    assert "at least 2 reviewer submissions" in metadata["notes"]
+
+
+def test_adjudicate_rag_benchmark_force_single_reviewer_is_clearly_provisional(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "alice",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "Single reviewer judgment.",
+                "must_appear_in_top_k": "1",
+            }
+        ],
+    )
+
+    run = adjudicate_rag_benchmark(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+        force=True,
+    )
+
+    assert run.metadata["pack_status"] == "in_review"
+    assert run.artifacts.adjudicated_judgments_path is not None
+    assert run.agreement_summary["forced_provisional"] is True
+    assert "Forced provisional adjudication artifact" in run.metadata["notes"]
+
+
+def test_adjudicate_rag_benchmark_canonicalizes_equivalent_reviewer_values(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "alice",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "Relevant",
+                "rationale": "Equivalent normalized label.",
+                "must_appear_in_top_k": "01",
+            }
+        ],
+    )
+    _write_reviewer_judgments(
+        benchmark_dir,
+        "bob",
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "relevant",
+                "rationale": "Equivalent normalized label.",
+                "must_appear_in_top_k": "1",
+            }
+        ],
+    )
+
+    run = adjudicate_rag_benchmark(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+        force=False,
+    )
+
+    assert run.conflict_count == 0
+    assert run.metadata["pack_status"] == "adjudicated"
+    adjudicated = pd.read_csv(
+        run.artifacts.adjudicated_judgments_path, dtype=str, keep_default_na=False
+    )
+    row = adjudicated.iloc[0]
+    assert row["relevance_label"] == "relevant"
+    assert row["must_appear_in_top_k"] == "1"
+
+
 def test_adjudicate_rag_benchmark_preserves_doc_and_chunk_semantics(tmp_path: Path) -> None:
     settings = build_settings(tmp_path)
     corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
@@ -1548,3 +1678,52 @@ def test_eval_rag_retrieval_prefers_adjudicated_judgments_when_present(tmp_path:
     assert run.summary["judgments_source"] == "adjudicated_judgments.csv"
     assert run.summary["benchmark_pack_status"] == "adjudicated"
     assert run.metrics.loc[run.metrics["retriever_name"] == "bm25"].iloc[0]["status"] == "ok"
+
+
+def test_eval_rag_retrieval_ignores_provisional_adjudicated_file(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "",
+                "relevance_label": "highly_relevant",
+                "rationale": "Forced provisional adjudication row.",
+                "must_appear_in_top_k": "1",
+            }
+        ]
+    ).to_csv(benchmark_dir / "adjudicated_judgments.csv", index=False)
+    (benchmark_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "benchmark_version": "v1",
+                "created_at": "2026-04-06T00:00:00+00:00",
+                "corpus_manifest_path": "artifacts/rag/corpus/manifest.json",
+                "authors": ["Alice"],
+                "pack_status": "in_review",
+                "notes": "Forced provisional adjudication artifact generated without satisfying the normal adjudication requirements.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run = eval_rag_retrieval(
+        settings=settings,
+        corpus_path=corpus_path,
+        benchmark_dir=benchmark_dir,
+        retrievers=("bm25",),
+        top_k=2,
+    )
+
+    assert run.summary["judgments_source"] == "judgments.csv"
+    assert run.summary["benchmark_pack_status"] == "in_review"
+    assert any(
+        "provisional adjudicated_judgments.csv exists" in warning
+        for warning in run.summary["benchmark_warnings"]
+    )

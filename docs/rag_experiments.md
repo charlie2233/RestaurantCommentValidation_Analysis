@@ -149,8 +149,9 @@ still requires:
 - citation requirements for provenance-sensitive lookups
 
 Draft or single-reviewer judgments should not be treated as final benchmark
-evidence. `eval-rag-retrieval` prefers `adjudicated_judgments.csv` when present
-and warns clearly when the pack is still provisional.
+evidence. `eval-rag-retrieval` prefers `adjudicated_judgments.csv` only when the
+pack metadata marks the pack as truly adjudicated, and warns clearly when the
+pack is still provisional or force-overridden.
 
 ## Reranking
 

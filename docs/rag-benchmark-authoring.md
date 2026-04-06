@@ -163,10 +163,13 @@ Outputs:
 Rules:
 
 - reviewer files are never overwritten
+- at least two valid reviewer submissions are required before the pack can be marked truly `adjudicated`
 - unresolved conflicts keep the pack out of `adjudicated` status unless `--force` is used
+- `--force` can emit a provisional adjudication artifact for workflow purposes, but the pack stays provisional unless minimum reviewer coverage and agreement requirements are both met
 - `chunk_id` judgments remain exact
 - `doc_id` judgments are satisfied by any chunk from the judged document
 - doc-level and chunk-level judgments are not flattened into each other during adjudication
+- semantically equivalent reviewer inputs such as `Relevant` vs `relevant` and `01` vs `1` are canonicalized before conflict detection
 
 ## Validation and evaluation workflow
 
@@ -186,9 +189,10 @@ dangling references are reported in structured validation artifacts under
 `artifacts/rag/benchmarks/validation/`. Missing required files or badly shaped CSVs
 still fail immediately as hard load errors.
 
-Evaluation prefers `adjudicated_judgments.csv` when present. If only draft or
-single-reviewer judgments exist, the benchmark summary stays provisional and
-warns that the pack is not yet fully adjudicated.
+Evaluation prefers `adjudicated_judgments.csv` only when the pack metadata marks
+the pack as truly adjudicated. If only draft, single-reviewer, or forced
+provisional judgments exist, the benchmark summary stays provisional and warns
+that the pack is not yet fully adjudicated.
 
 ## When reranking is worth testing
 

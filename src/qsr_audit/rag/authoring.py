@@ -14,11 +14,13 @@ import pandas as pd
 from qsr_audit.config import Settings
 from qsr_audit.rag.benchmark_pack import (
     ADJUDICATED_JUDGMENTS_FILENAME,
+    ALLOWED_RELEVANCE_LABELS,
     JUDGMENT_COLUMNS,
     JUDGMENTS_FILENAME,
     QUERY_GROUP_COLUMNS,
     RagBenchmarkValidationRun,
     build_default_rag_benchmark_metadata,
+    load_rag_benchmark_metadata,
     load_rag_benchmark_pack,
     validate_rag_benchmark_pack,
     write_rag_benchmark_metadata,
@@ -32,6 +34,7 @@ DEFAULT_AUTHORING_SUBDIR = Path("rag/benchmarks/authoring")
 REVIEWERS_DIRNAME = "reviewers"
 WORKING_DIRNAME = "working"
 UNDER_COVERED_QUERY_GROUP_THRESHOLD = 2
+MIN_ADJUDICATION_REVIEWER_COUNT = 2
 
 
 @dataclass(frozen=True)
@@ -413,14 +416,28 @@ def adjudicate_rag_benchmark(
     conflicts_df.to_csv(conflicts_csv_path, index=False)
 
     unresolved_conflict_count = len(conflicts)
-    pack_status = "adjudicated" if (force or unresolved_conflict_count == 0) else "in_review"
+    minimum_reviewer_coverage_met = len(reviewer_names) >= MIN_ADJUDICATION_REVIEWER_COUNT
+    true_adjudication_eligible = minimum_reviewer_coverage_met and unresolved_conflict_count == 0
+    forced_provisional = force and not true_adjudication_eligible
+    pack_status = "adjudicated" if true_adjudication_eligible else "in_review"
     metadata = load_rag_benchmark_pack(benchmark_dir_resolved).metadata
     metadata["pack_status"] = pack_status
-    if force and unresolved_conflict_count:
-        metadata["notes"] = (
-            f"{metadata.get('notes', '').strip()} Force-adjudicated with unresolved conflicts on "
-            f"{datetime.now(UTC).date().isoformat()}."
-        ).strip()
+    if not minimum_reviewer_coverage_met:
+        metadata["notes"] = _append_metadata_note(
+            metadata.get("notes", ""),
+            (
+                "Adjudication remains provisional until at least "
+                f"{MIN_ADJUDICATION_REVIEWER_COUNT} reviewer submissions are available."
+            ),
+        )
+    if forced_provisional:
+        metadata["notes"] = _append_metadata_note(
+            metadata.get("notes", ""),
+            (
+                "Forced provisional adjudication artifact generated without satisfying the "
+                "normal adjudication requirements."
+            ),
+        )
     agreement_summary = {
         "built_at_utc": datetime.now(UTC).isoformat(),
         "benchmark_dir": str(benchmark_dir_resolved),
@@ -437,6 +454,10 @@ def adjudicate_rag_benchmark(
         ),
         "adjudicated_row_count": int(len(adjudicated_rows.index)),
         "conflict_count": unresolved_conflict_count,
+        "minimum_reviewer_count_required": MIN_ADJUDICATION_REVIEWER_COUNT,
+        "minimum_reviewer_coverage_met": minimum_reviewer_coverage_met,
+        "true_adjudication_eligible": true_adjudication_eligible,
+        "forced_provisional": forced_provisional,
         "force_used": force,
         "pack_status": pack_status,
         "top_conflict_types": _top_counts(conflicts, key="conflict_type"),
@@ -460,8 +481,9 @@ def adjudicate_rag_benchmark(
             f"the pack as final: {agreement_summary_markdown_path}."
         )
 
-    adjudicated_judgments_path = benchmark_dir_resolved / ADJUDICATED_JUDGMENTS_FILENAME
-    adjudicated_rows[JUDGMENT_COLUMNS].to_csv(adjudicated_judgments_path, index=False)
+    if true_adjudication_eligible or force:
+        adjudicated_judgments_path = benchmark_dir_resolved / ADJUDICATED_JUDGMENTS_FILENAME
+        adjudicated_rows[JUDGMENT_COLUMNS].to_csv(adjudicated_judgments_path, index=False)
     write_rag_benchmark_metadata(benchmark_dir_resolved, metadata)
     return RagBenchmarkAdjudicationRun(
         benchmark_dir=benchmark_dir_resolved,
@@ -526,7 +548,10 @@ def summarize_rag_benchmark_authoring(
                 "judged": not query_judgments.empty,
                 "has_hard_negative": (
                     not query_judgments.empty
-                    and (query_judgments["relevance_label"] == "not_relevant").any()
+                    and query_judgments["relevance_label"]
+                    .map(_normalize_relevance_label)
+                    .eq("not_relevant")
+                    .any()
                 ),
             }
         )
@@ -737,8 +762,11 @@ def _normalize_reviewer_rows(
         else str(chunk_to_doc_id.get(str(row.get("chunk_id", "")).strip(), "")),
         axis=1,
     )
+    rows["relevance_label_normalized"] = (
+        rows["relevance_label"].fillna("").map(_normalize_relevance_label)
+    )
     rows["must_appear_normalized"] = (
-        rows["must_appear_in_top_k"].fillna("").map(lambda value: str(value).strip())
+        rows["must_appear_in_top_k"].fillna("").map(_normalize_must_appear_threshold)
     )
     rows["rationale_normalized"] = (
         rows["rationale"].fillna("").map(lambda value: str(value).strip())
@@ -759,7 +787,7 @@ def _compare_reviewer_rows(
     for (query_id, reference_type, reference_value), group in grouped:
         present_reviewers = sorted(group["reviewer"].tolist())
         missing_reviewers = sorted(reviewer_set - set(present_reviewers))
-        relevance_values = sorted(group["relevance_label"].map(str).unique().tolist())
+        relevance_values = sorted(group["relevance_label_normalized"].unique().tolist())
         must_appear_values = sorted(group["must_appear_normalized"].unique().tolist())
         missing_rationale_reviewers = sorted(
             reviewer
@@ -807,9 +835,9 @@ def _compare_reviewer_rows(
                 "query_id": query_id,
                 "doc_id": canonical_row.get("doc_id", ""),
                 "chunk_id": canonical_row.get("chunk_id", ""),
-                "relevance_label": canonical_row.get("relevance_label", ""),
+                "relevance_label": canonical_row.get("relevance_label_normalized", ""),
                 "rationale": canonical_row.get("rationale", ""),
-                "must_appear_in_top_k": canonical_row.get("must_appear_in_top_k", ""),
+                "must_appear_in_top_k": canonical_row.get("must_appear_normalized", ""),
             }
         )
     adjudicated_frame = pd.DataFrame(adjudicated_rows, columns=JUDGMENT_COLUMNS)
@@ -818,7 +846,8 @@ def _compare_reviewer_rows(
 
 def _load_authoring_summary_judgments(benchmark_dir: Path) -> tuple[pd.DataFrame, str]:
     adjudicated_path = benchmark_dir / ADJUDICATED_JUDGMENTS_FILENAME
-    if adjudicated_path.exists():
+    metadata = load_rag_benchmark_metadata(benchmark_dir)
+    if adjudicated_path.exists() and metadata.get("pack_status") == "adjudicated":
         return (
             pd.read_csv(adjudicated_path, dtype=str, keep_default_na=False),
             ADJUDICATED_JUDGMENTS_FILENAME,
@@ -1045,9 +1074,13 @@ def _render_adjudication_summary_markdown(
         f"- Benchmark dir: `{summary['benchmark_dir']}`",
         f"- Reviewers: `{', '.join(summary['reviewers'])}`",
         f"- Reviewer count: `{summary['reviewer_count']}`",
+        f"- Minimum reviewer count required: `{summary['minimum_reviewer_count_required']}`",
+        f"- Minimum reviewer coverage met: `{summary['minimum_reviewer_coverage_met']}`",
         f"- Adjudicated rows: `{summary['adjudicated_row_count']}`",
         f"- Conflicts: `{summary['conflict_count']}`",
         f"- Force used: `{summary['force_used']}`",
+        f"- Forced provisional: `{summary['forced_provisional']}`",
+        f"- True adjudication eligible: `{summary['true_adjudication_eligible']}`",
         f"- Pack status: `{summary['pack_status']}`",
         "",
         "## Conflict Types",
@@ -1145,6 +1178,33 @@ def _split_multivalue_or_default(value: str) -> list[str]:
 
 def _parse_boolish(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
+def _normalize_relevance_label(value: Any) -> str:
+    normalized = str(value).strip().lower()
+    return normalized if normalized in ALLOWED_RELEVANCE_LABELS else normalized
+
+
+def _normalize_must_appear_threshold(value: Any) -> str:
+    text = str(value).strip()
+    if not text:
+        return ""
+    try:
+        return str(int(text))
+    except ValueError:
+        return text
+
+
+def _append_metadata_note(existing_notes: str, new_note: str) -> str:
+    normalized_existing = str(existing_notes).strip()
+    normalized_new = str(new_note).strip()
+    if not normalized_new:
+        return normalized_existing
+    if normalized_new in normalized_existing:
+        return normalized_existing
+    if not normalized_existing:
+        return normalized_new
+    return f"{normalized_existing} {normalized_new}"
 
 
 __all__ = [

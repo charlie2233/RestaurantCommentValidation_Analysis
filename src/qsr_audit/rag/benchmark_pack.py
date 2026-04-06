@@ -284,11 +284,12 @@ def write_rag_benchmark_metadata(
 
 
 def resolve_preferred_judgments_path(benchmark_dir: Path) -> Path:
-    """Prefer adjudicated judgments when present, otherwise use the draft root file."""
+    """Prefer adjudicated judgments only for packs explicitly marked adjudicated."""
 
     resolved_dir = benchmark_dir.expanduser().resolve()
     adjudicated_path = resolved_dir / ADJUDICATED_JUDGMENTS_FILENAME
-    if adjudicated_path.exists():
+    metadata = load_rag_benchmark_metadata(resolved_dir)
+    if adjudicated_path.exists() and metadata.get("pack_status") == "adjudicated":
         return adjudicated_path
     return resolved_dir / JUDGMENTS_FILENAME
 

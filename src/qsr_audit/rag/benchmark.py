@@ -1390,6 +1390,13 @@ def _build_summary(
             benchmark_warnings.append(
                 "This benchmark run is using draft or single-reviewer judgments instead of an adjudicated pack."
             )
+            provisional_adjudicated_path = (
+                validation.pack.benchmark_dir / ADJUDICATED_JUDGMENTS_FILENAME
+            )
+            if provisional_adjudicated_path.exists():
+                benchmark_warnings.append(
+                    "A provisional adjudicated_judgments.csv exists, but it is being ignored because the pack is not truly adjudicated."
+                )
         if benchmark_pack_status != "adjudicated":
             benchmark_warnings.append(
                 f"Benchmark pack status is `{benchmark_pack_status}`; treat retrieval metrics as provisional."
