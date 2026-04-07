@@ -1,6 +1,6 @@
 # Suggested RAG Queries
 
-- Benchmark dir: `/Users/hanfei/RestaurantAnalysis/data/rag_benchmarks/2026q2_pack`
+- Benchmark dir: `data/rag_benchmarks/2026q2_pack`
 - Suggestions: `12`
 - Suggestions are deterministic review candidates only. They are not ground truth and they never overwrite `queries.csv`.
 - Final `queries.csv` and `judgments.csv` are intentionally blank in this starter pack.

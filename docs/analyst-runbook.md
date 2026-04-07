@@ -27,13 +27,13 @@ code.
 
 Start here:
 
-1. Work the top evidence queue in [reference-evidence-backlog.md](/Users/hanfei/RestaurantAnalysis/docs/reference-evidence-backlog.md).
-2. Review the committed starter benchmark pack in [data/rag_benchmarks/2026q2_pack/README.md](/Users/hanfei/RestaurantAnalysis/data/rag_benchmarks/2026q2_pack/README.md).
+1. Work the top evidence queue in [reference-evidence-backlog.md](reference-evidence-backlog.md).
+2. Review the committed starter benchmark pack in [2026q2_pack README](../data/rag_benchmarks/2026q2_pack/README.md).
 3. Keep `queries.csv` and `judgments.csv` blank until humans approve real
    benchmark tasks and labels.
 4. Use two reviewers from the start for benchmark judgments.
 5. Snapshot Gold monthly only after the checklist in
-   [monthly-gold-snapshot-checklist.md](/Users/hanfei/RestaurantAnalysis/docs/monthly-gold-snapshot-checklist.md)
+   [monthly-gold-snapshot-checklist.md](monthly-gold-snapshot-checklist.md)
    is satisfied.
 
 ## What each stage is for
@@ -116,7 +116,7 @@ Rules:
 - Forecast artifacts belong under `artifacts/forecasting/`, not `reports/` or
   `strategy/`.
 - Follow the operating checklist in
-  [monthly-gold-snapshot-checklist.md](/Users/hanfei/RestaurantAnalysis/docs/monthly-gold-snapshot-checklist.md)
+  [monthly-gold-snapshot-checklist.md](monthly-gold-snapshot-checklist.md)
   before treating a month as forecast-ready history.
 
 ## Retrieval experiment workflow
@@ -151,12 +151,14 @@ Rules:
 - `seed-rag-queries` writes deterministic metadata-driven suggestions to `working/`; review them manually before copying anything into `queries.csv`.
 - Use `working/judgment_workspace.csv` as a suggestion workspace only. It is not a final judgment file.
 - `working/hard_negative_suggestions.csv` is also suggestion-only. It should never be treated as final `not_relevant` evidence without human review.
-- Keep reviewer files under `reviewers/<name>/judgments.csv`.
+- Keep reviewer files under concrete paths such as
+  `reviewers/alice/judgments.csv` and `reviewers/bob/judgments.csv`.
 - Leave unknowns blank, label ambiguity explicitly, and do not invent judgments for evidence that is not in the vetted corpus.
 - Adjudicate reviewer conflicts before treating benchmark metrics as stable evidence.
 - Use reranking only after the benchmark pack is valid and the first-pass retriever quality is measurable.
 - Use failure triage after each real run to decide whether the next benchmark fix belongs in retrieval, reranking, filters, provenance coverage, or the benchmark labels themselves.
-- The committed starter pack under [data/rag_benchmarks/2026q2_pack](/Users/hanfei/RestaurantAnalysis/data/rag_benchmarks/2026q2_pack)
+- The committed starter pack under
+  [data/rag_benchmarks/2026q2_pack](../data/rag_benchmarks/2026q2_pack/README.md)
   includes draft working suggestions only. It does not include approved final
   queries or judgments.
 

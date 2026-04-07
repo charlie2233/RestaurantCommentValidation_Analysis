@@ -6,7 +6,9 @@
 - [ ] No raw workbook, Bronze, or Silver evidence is referenced.
 - [ ] `query_id` values are unique and reflect realistic analyst lookups.
 - [ ] Ambiguity and citation requirements are marked explicitly where needed.
-- [ ] Reviewer files live under `reviewers/<name>/judgments.csv` and do not overwrite `judgments.csv`.
+- [ ] Reviewer files live under paths such as `reviewers/alice/judgments.csv`
+      and `reviewers/bob/judgments.csv`, and they do not overwrite
+      `judgments.csv`.
 - [ ] At least two reviewers participate before any pack is treated as truly adjudicated.
 - [ ] Reviewer conflicts were adjudicated before treating the benchmark as final.
 - [ ] Benchmark outputs are kept under `artifacts/rag/...`, not `reports/` or `strategy/`.

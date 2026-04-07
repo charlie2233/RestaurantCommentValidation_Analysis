@@ -8,6 +8,12 @@ import sys
 from pathlib import Path
 
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
+TEXT_HYGIENE_SUFFIXES = {".md", ".json", ".csv", ".toml", ".yaml", ".yml", ".txt"}
+WORKSTATION_PATH_SNIPPETS = ("/Users/", "C:\\Users\\", "/home/")
+MALFORMED_PLACEHOLDER_SNIPPETS = (
+    "reviewers//judgments.csv",
+    "artifacts/manifests//latest.json",
+)
 ALLOWED_TRACKED = {
     "data/raw/.gitkeep",
     "data/bronze/.gitkeep",
@@ -44,6 +50,8 @@ def main() -> int:
                 f"Tracked file exceeds {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MiB: {relative_path}"
             )
 
+        violations.extend(_content_hygiene_violations(relative_path))
+
     if violations:
         print("Repository hygiene check failed:", file=sys.stderr)
         for violation in violations:
@@ -70,6 +78,42 @@ def _is_forbidden_tracked_artifact(relative_path: str) -> bool:
     if any(relative_path.startswith(prefix) for prefix in ALLOWED_PREFIXES):
         return False
     return any(relative_path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES)
+
+
+def _content_hygiene_violations(relative_path: str) -> list[str]:
+    path = Path(relative_path)
+    if path.suffix.lower() not in TEXT_HYGIENE_SUFFIXES:
+        return []
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return []
+
+    violations: list[str] = []
+    for snippet in WORKSTATION_PATH_SNIPPETS:
+        if _line_contains_non_url_snippet(content, snippet):
+            violations.append(
+                f"Tracked text contains workstation-specific path '{snippet}': {relative_path}"
+            )
+
+    for snippet in MALFORMED_PLACEHOLDER_SNIPPETS:
+        if snippet in content:
+            violations.append(
+                f"Tracked text contains malformed placeholder path '{snippet}': {relative_path}"
+            )
+
+    return violations
+
+
+def _line_contains_non_url_snippet(content: str, snippet: str) -> bool:
+    for line in content.splitlines():
+        if snippet not in line:
+            continue
+        if "http://" in line or "https://" in line:
+            continue
+        return True
+    return False
 
 
 if __name__ == "__main__":
