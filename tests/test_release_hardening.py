@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from typer.testing import CliRunner
-
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.governance import (
@@ -17,6 +15,8 @@ from qsr_audit.governance import (
     write_artifact_manifest,
 )
 from qsr_audit.release import preflight_release
+from typer.testing import CliRunner
+
 from tests.helpers import build_settings, write_sample_workbook
 
 
