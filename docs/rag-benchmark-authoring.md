@@ -117,11 +117,14 @@ Bootstrap suggestions first:
 
 ```bash
 qsr-audit build-rag-corpus
+qsr-audit seed-rag-queries --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25 --top-k 10
 ```
 
 This writes reviewer-facing working files under `data/rag_benchmarks/my-pack/working/`:
 
+- `suggested_queries.csv`
+- `suggested_queries.md`
 - `query_specs.json`
 - `candidate_results.parquet`
 - `candidate_results.csv`
@@ -130,6 +133,18 @@ This writes reviewer-facing working files under `data/rag_benchmarks/my-pack/wor
 
 These are suggestions only. They are not ground truth and they never overwrite
 `judgments.csv`.
+
+How suggestions are generated:
+
+- deterministic local metadata only
+- brand names, metric names, publish-status labels, and source kinds already present in the vetted corpus
+- common analyst lookup patterns such as brand-metric lookup, publish-status audit, provenance lookup, and cross-brand comparison
+
+Suggested queries still require human review:
+
+- delete weak suggestions instead of forcing them into `queries.csv`
+- keep ambiguous queries marked as ambiguous when the analyst intent is genuinely split
+- manually copy accepted suggestions into `queries.csv`; there is no auto-promote shortcut in this repo
 
 Reviewer submission workflow:
 
@@ -143,6 +158,21 @@ Validate reviewer files before adjudication:
 ```bash
 qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
 ```
+
+After you have at least one real retrieval run, mine review candidates instead of guessing negatives:
+
+```bash
+qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
+qsr-audit mine-rag-hard-negatives --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-failures --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+```
+
+Hard-negative guidance:
+
+- treat every suggested hard negative as a review candidate, not a final `not_relevant` label
+- common types include wrong-brand near misses, wrong-metric near misses, blocked-vs-publishable confusion, provenance-source confusion, and metadata-filter near misses
+- if the query itself is underspecified, keep it ambiguous or split it instead of forcing a brittle negative label
 
 ## Adjudication
 
@@ -188,6 +218,14 @@ Validation failures that come from malformed field values, contradictory rows, o
 dangling references are reported in structured validation artifacts under
 `artifacts/rag/benchmarks/validation/`. Missing required files or badly shaped CSVs
 still fail immediately as hard load errors.
+
+Failure triage guidance:
+
+- `retrieval miss` means relevant evidence still is not surfacing well enough
+- `metadata filter miss` usually points to over-tight or misaligned filters
+- `citation/provenance miss` means the returned evidence lacks enough citation-bearing support
+- `ambiguity/query-design issue` means the query should likely be clarified or split
+- `benchmark-label issue` means the judged evidence itself should be reviewed before blaming retrieval
 
 Evaluation prefers `adjudicated_judgments.csv` only when the pack metadata marks
 the pack as truly adjudicated. If only draft, single-reviewer, or forced

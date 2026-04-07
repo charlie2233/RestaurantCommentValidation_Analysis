@@ -26,11 +26,14 @@ Out of scope in this PR:
 ```bash
 qsr-audit init-rag-benchmark --name my-pack --author alice
 qsr-audit build-rag-corpus
+qsr-audit seed-rag-queries --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
 qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
-qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit mine-rag-hard-negatives --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-failures --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
 qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
 ```
@@ -109,9 +112,12 @@ Benchmark validation output lives under `artifacts/rag/benchmarks/validation/`.
 Human authoring workflow additions:
 
 - `init-rag-benchmark` creates a local pack scaffold under `data/rag_benchmarks/<pack>/`
+- `seed-rag-queries` proposes deterministic lookup candidates from corpus metadata and writes them to `working/suggested_queries.*`
 - `bootstrap-rag-judgments` writes suggestion-only reviewer work files under `data/rag_benchmarks/<pack>/working/`
 - `validate-rag-reviewer-file` checks reviewer submissions under `reviewers/<name>/judgments.csv`
 - `adjudicate-rag-benchmark` compares reviewer files and writes conflict reports under `artifacts/rag/benchmarks/adjudication/`
+- `mine-rag-hard-negatives` proposes review-candidate negatives from an existing retrieval run without touching final judgments
+- `summarize-rag-failures` buckets retrieval errors so analysts can see whether the next fix belongs in query design, filters, provenance coverage, or ranking
 - `summarize-rag-benchmark-authoring` reports benchmark coverage gaps under `artifacts/rag/benchmarks/authoring/`
 
 ## Evaluation outputs
@@ -135,6 +141,10 @@ Benchmark outputs live under `artifacts/rag/benchmarks/`:
 - `failure_cases.md`
 - `query_bucket_metrics.csv`
 - `rerank_delta.csv` when reranking is enabled
+- `failure_triage.csv`
+- `failure_triage.json`
+- `failure_triage.md`
+- `hard_negative_summary.md` when hard-negative mining is run
 
 ## Relevance judgments
 
@@ -147,6 +157,13 @@ still requires:
 - reviewed failure cases for low-recall queries
 - ambiguity flags where multiple interpretations are realistic
 - citation requirements for provenance-sensitive lookups
+
+Suggestion and triage helpers are intentionally conservative:
+
+- seeded queries are deterministic metadata-driven suggestions, not analyst-approved tasks
+- hard-negative suggestions are review candidates, not final `not_relevant` labels
+- failure triage buckets are debugging aids, not proof that the benchmark labels are correct
+- no helper in this repo silently merges working suggestions into `queries.csv` or final judgments
 
 Draft or single-reviewer judgments should not be treated as final benchmark
 evidence. `eval-rag-retrieval` prefers `adjudicated_judgments.csv` only when the

@@ -135,6 +135,17 @@
   - `working/judgment_workspace.csv`
   - `working/bootstrap_manifest.json`
 
+### `qsr-audit seed-rag-queries --benchmark-dir <path>`
+
+- Purpose: generate deterministic analyst-style query suggestions from the current vetted corpus metadata.
+- Guardrails:
+  - writes only under `data/rag_benchmarks/<pack>/working/`
+  - never overwrites `queries.csv`
+  - suggestions are review candidates, not ground truth
+- Primary outputs:
+  - `working/suggested_queries.csv`
+  - `working/suggested_queries.md`
+
 ### `qsr-audit validate-rag-benchmark --benchmark-dir <path>`
 
 - Purpose: validate an analyst-authored benchmark pack against the current
@@ -192,6 +203,17 @@
   - `artifacts/rag/benchmarks/query_bucket_metrics.csv`
   - `artifacts/rag/benchmarks/rerank_delta.csv` when reranking is enabled
 
+### `qsr-audit mine-rag-hard-negatives --benchmark-dir <path> --run-dir <path>`
+
+- Purpose: inspect one retrieval benchmark run and propose hard-negative review candidates such as wrong-brand, wrong-metric, and metadata-filter near misses.
+- Guardrails:
+  - suggestions stay under `data/rag_benchmarks/<pack>/working/`
+  - does not change `judgments.csv` or `adjudicated_judgments.csv`
+  - suggestions remain human-review inputs, not final labels
+- Primary outputs:
+  - `data/rag_benchmarks/<pack>/working/hard_negative_suggestions.csv`
+  - `artifacts/rag/benchmarks/<run_id>/hard_negative_summary.md`
+
 ### `qsr-audit adjudicate-rag-benchmark --benchmark-dir <path>`
 
 - Purpose: compare reviewer judgments, write conflict reports, and emit `adjudicated_judgments.csv` when safe.
@@ -205,9 +227,19 @@
   - `artifacts/rag/benchmarks/adjudication/<run_id>/agreement_summary.md`
   - `data/rag_benchmarks/<pack>/adjudicated_judgments.csv` when written
 
+### `qsr-audit summarize-rag-failures --benchmark-dir <path> --run-dir <path>`
+
+- Purpose: bucket retrieval benchmark failures into triage categories such as retrieval miss, metadata filter miss, citation/provenance miss, or ambiguity/query-design issue.
+- Primary outputs:
+  - `artifacts/rag/benchmarks/<run_id>/failure_triage.csv`
+  - `artifacts/rag/benchmarks/<run_id>/failure_triage.json`
+  - `artifacts/rag/benchmarks/<run_id>/failure_triage.md`
+
 ### `qsr-audit summarize-rag-benchmark-authoring --benchmark-dir <path>`
 
 - Purpose: summarize benchmark authoring coverage, unjudged queries, and missing slice coverage.
+- Optional run context:
+  - pass `--run-dir` to surface dominant failure buckets and outstanding hard-negative review gaps from an existing retrieval run
 - Primary outputs:
   - `artifacts/rag/benchmarks/authoring/<pack>/summary.json`
   - `artifacts/rag/benchmarks/authoring/<pack>/summary.md`

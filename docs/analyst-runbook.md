@@ -92,11 +92,14 @@ over vetted local artifacts, not to generate analyst-facing answers.
 ```bash
 qsr-audit init-rag-benchmark --name my-pack --author alice
 qsr-audit build-rag-corpus
+qsr-audit seed-rag-queries --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
 qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
-qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit mine-rag-hard-negatives --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-failures --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack --run-dir artifacts/rag/benchmarks/<run_id>
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
 qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
 ```
@@ -109,11 +112,14 @@ Rules:
 - Retrieval artifacts belong under `artifacts/rag/`, not `reports/` or `strategy/`.
 - Dense retrieval is opt-in and may be skipped when weights are unavailable or CI is running.
 - Initialize benchmark packs under `data/rag_benchmarks/` and keep analyst source files there.
+- `seed-rag-queries` writes deterministic metadata-driven suggestions to `working/`; review them manually before copying anything into `queries.csv`.
 - Use `working/judgment_workspace.csv` as a suggestion workspace only. It is not a final judgment file.
+- `working/hard_negative_suggestions.csv` is also suggestion-only. It should never be treated as final `not_relevant` evidence without human review.
 - Keep reviewer files under `reviewers/<name>/judgments.csv`.
 - Leave unknowns blank, label ambiguity explicitly, and do not invent judgments for evidence that is not in the vetted corpus.
 - Adjudicate reviewer conflicts before treating benchmark metrics as stable evidence.
 - Use reranking only after the benchmark pack is valid and the first-pass retriever quality is measurable.
+- Use failure triage after each real run to decide whether the next benchmark fix belongs in retrieval, reranking, filters, provenance coverage, or the benchmark labels themselves.
 
 ## How to read the outputs
 
@@ -151,10 +157,11 @@ Rules:
 - `artifacts/rag/benchmarks/validation/` holds benchmark-pack validation output.
 - `artifacts/rag/benchmarks/adjudication/` holds reviewer agreement and conflict reports.
 - `artifacts/rag/benchmarks/authoring/` holds benchmark coverage summaries.
-- `artifacts/rag/benchmarks/` holds benchmark metrics, per-query retrieval results, failure cases, bucket metrics, rerank deltas, and summary markdown.
+- `artifacts/rag/benchmarks/` holds benchmark metrics, per-query retrieval results, failure cases, bucket metrics, failure triage, hard-negative summaries, rerank deltas, and summary markdown.
 - `rag-search` returns chunks plus metadata only. It does not synthesize answers.
 - If a retrieved chunk is `blocked` or `advisory`, that status is context, not clearance to use it externally.
 - `eval-rag-retrieval` prefers `adjudicated_judgments.csv` when present and warns when the pack is still `draft` or `in_review`.
+- `summarize-rag-benchmark-authoring --run-dir ...` is the quickest way to see under-covered slices, dominant failure buckets, and whether hard-negative review is still missing.
 
 ### Syntheticness outputs
 

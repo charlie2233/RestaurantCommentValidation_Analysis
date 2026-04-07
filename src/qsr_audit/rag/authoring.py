@@ -12,6 +12,7 @@ from typing import Any
 import pandas as pd
 
 from qsr_audit.config import Settings
+from qsr_audit.rag.authoring_assist import collect_authoring_run_context
 from qsr_audit.rag.benchmark_pack import (
     ADJUDICATED_JUDGMENTS_FILENAME,
     ALLOWED_RELEVANCE_LABELS,
@@ -505,6 +506,7 @@ def summarize_rag_benchmark_authoring(
     *,
     benchmark_dir: Path,
     settings: Settings | None = None,
+    run_dir: Path | None = None,
 ) -> RagBenchmarkAuthoringSummaryRun:
     """Summarize benchmark authoring coverage and gaps across the current pack."""
 
@@ -575,7 +577,19 @@ def summarize_rag_benchmark_authoring(
         "query_groups_without_provenance_sensitive_queries": _collect_query_groups_without_provenance_sensitive_queries(
             query_frame
         ),
+        "failure_query_count": 0,
+        "top_failure_buckets": [],
+        "hard_negative_suggestion_count": 0,
+        "hard_negative_type_counts": [],
     }
+    if run_dir is not None:
+        summary.update(
+            collect_authoring_run_context(
+                benchmark_dir=benchmark_dir_resolved,
+                run_dir=run_dir,
+                settings=resolved_settings,
+            )
+        )
 
     output_root = (
         (
@@ -751,15 +765,19 @@ def _normalize_reviewer_rows(
         axis=1,
     )
     rows["reference_value"] = rows.apply(
-        lambda row: str(row.get("chunk_id", "")).strip()
-        if str(row.get("chunk_id", "")).strip()
-        else str(row.get("doc_id", "")).strip(),
+        lambda row: (
+            str(row.get("chunk_id", "")).strip()
+            if str(row.get("chunk_id", "")).strip()
+            else str(row.get("doc_id", "")).strip()
+        ),
         axis=1,
     )
     rows["doc_scope_id"] = rows.apply(
-        lambda row: str(row.get("doc_id", "")).strip()
-        if str(row.get("doc_id", "")).strip()
-        else str(chunk_to_doc_id.get(str(row.get("chunk_id", "")).strip(), "")),
+        lambda row: (
+            str(row.get("doc_id", "")).strip()
+            if str(row.get("doc_id", "")).strip()
+            else str(chunk_to_doc_id.get(str(row.get("chunk_id", "")).strip(), ""))
+        ),
         axis=1,
     )
     rows["relevance_label_normalized"] = (
@@ -1145,6 +1163,26 @@ def _render_authoring_summary_markdown(summary: dict[str, Any]) -> str:
     else:
         for group in summary["query_groups_without_provenance_sensitive_queries"]:
             lines.append(f"- `{group}`")
+    lines.extend(["", "## Failure Buckets", ""])
+    if not summary["top_failure_buckets"]:
+        lines.append("- None.")
+    else:
+        for row in summary["top_failure_buckets"]:
+            lines.append(f"- `{row['value']}`: {row['count']}")
+    lines.extend(
+        [
+            "",
+            "## Hard Negative Review Gaps",
+            "",
+            f"- Suggested hard negatives: `{summary['hard_negative_suggestion_count']}`",
+            f"- Failure queries observed: `{summary['failure_query_count']}`",
+        ]
+    )
+    if not summary["hard_negative_type_counts"]:
+        lines.append("- Suggested hard-negative types: none.")
+    else:
+        for row in summary["hard_negative_type_counts"]:
+            lines.append(f"- Suggested `{row['value']}` rows: {row['count']}")
     lines.extend(
         [
             "",

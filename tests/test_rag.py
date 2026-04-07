@@ -14,7 +14,10 @@ from qsr_audit.rag import (
     eval_rag_retrieval,
     init_rag_benchmark,
     inspect_rag_benchmark_query,
+    mine_rag_hard_negatives,
+    seed_rag_queries,
     summarize_rag_benchmark_authoring,
+    summarize_rag_failures,
     validate_rag_benchmark_pack,
     validate_rag_reviewer_file,
 )
@@ -441,6 +444,198 @@ def _write_reviewer_judgments(
     reviewer_path = reviewer_dir / "judgments.csv"
     pd.DataFrame(rows, columns=JUDGMENT_COLUMNS).to_csv(reviewer_path, index=False)
     return reviewer_path
+
+
+def _write_authoring_assist_run_dir(run_dir: Path) -> Path:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    query_specs = [
+        {
+            "query_id": "blocked-kpi",
+            "query": "Which Taco Bell KPI rows are blocked for external export?",
+            "metadata_filters": {"publish_status": "blocked"},
+            "brand_filter_values": ["Taco Bell"],
+            "metric_filter_values": ["auv"],
+            "expected_source_kinds": ["gold_publish_decision"],
+            "publish_status_scope": "blocked",
+            "ambiguity_flag": False,
+            "requires_citation": True,
+            "query_groups": ["brand_specific"],
+            "query_buckets": ["brand_specific", "provenance_citation"],
+            "relevant_chunk_ids": [],
+            "relevant_doc_ids": ["gold-publish-decision-taco-bell-auv-blocked"],
+            "relevance_by_chunk_id": {},
+            "relevance_by_doc_id": {"gold-publish-decision-taco-bell-auv-blocked": 1},
+            "rationale_by_chunk_id": {},
+            "rationale_by_doc_id": {
+                "gold-publish-decision-taco-bell-auv-blocked": "Blocked KPI decision should appear."
+            },
+            "must_appear_chunk_ids_in_top_k": {},
+            "must_appear_doc_ids_in_top_k": {"gold-publish-decision-taco-bell-auv-blocked": 1},
+        },
+        {
+            "query_id": "validation-error",
+            "query": "Show Taco Bell validation findings with error severity.",
+            "metadata_filters": {"source_kind": "gold_validation_flag"},
+            "brand_filter_values": ["Taco Bell"],
+            "metric_filter_values": [],
+            "expected_source_kinds": ["gold_validation_flag"],
+            "publish_status_scope": "all",
+            "ambiguity_flag": False,
+            "requires_citation": False,
+            "query_groups": ["metadata_filter_heavy"],
+            "query_buckets": ["metadata_filter_heavy"],
+            "relevant_chunk_ids": ["gold-validation-flag-auv::chunk-001"],
+            "relevant_doc_ids": [],
+            "relevance_by_chunk_id": {"gold-validation-flag-auv::chunk-001": 1},
+            "relevance_by_doc_id": {},
+            "rationale_by_chunk_id": {
+                "gold-validation-flag-auv::chunk-001": "Validation flag should be returned."
+            },
+            "rationale_by_doc_id": {},
+            "must_appear_chunk_ids_in_top_k": {"gold-validation-flag-auv::chunk-001": 1},
+            "must_appear_doc_ids_in_top_k": {},
+        },
+    ]
+    (run_dir / "benchmark_queries.json").write_text(
+        json.dumps(query_specs, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "query_text": "Which Taco Bell KPI rows are blocked for external export?",
+                "run_label": "bm25",
+                "retriever_name": "bm25",
+                "stage": "retrieval",
+                "reranker_name": "",
+                "status": "warning",
+                "status_reason": "Not all judged chunk or document targets were retrieved in the top-k.",
+                "recall_at_k": 0.0,
+                "mrr": 0.0,
+                "ndcg_at_k": 0.0,
+                "citation_precision": 1.0,
+                "metadata_filter_correctness": 1.0,
+                "latency_ms": 1.2,
+                "failure_source": "retrieval",
+                "query_buckets": ["brand_specific", "provenance_citation"],
+                "ambiguity_flag": False,
+                "judged_relevant_count": 1,
+                "must_appear_violation_count": 1,
+                "index_size_bytes": 193,
+            },
+            {
+                "query_id": "validation-error",
+                "query_text": "Show Taco Bell validation findings with error severity.",
+                "run_label": "bm25",
+                "retriever_name": "bm25",
+                "stage": "retrieval",
+                "reranker_name": "",
+                "status": "warning",
+                "status_reason": "Retrieved rows did not all satisfy the benchmark metadata filters.",
+                "recall_at_k": 0.0,
+                "mrr": 0.0,
+                "ndcg_at_k": 0.0,
+                "citation_precision": 1.0,
+                "metadata_filter_correctness": 0.0,
+                "latency_ms": 1.1,
+                "failure_source": "filtering",
+                "query_buckets": ["metadata_filter_heavy"],
+                "ambiguity_flag": False,
+                "judged_relevant_count": 1,
+                "must_appear_violation_count": 1,
+                "index_size_bytes": 193,
+            },
+        ]
+    ).to_json(run_dir / "per_query_metrics.json", orient="records", force_ascii=False, indent=2)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "query_text": "Which Taco Bell KPI rows are blocked for external export?",
+                "run_label": "bm25",
+                "stage": "retrieval",
+                "reranker_name": "",
+                "retriever_name": "bm25",
+                "rank": 1,
+                "score": 12.0,
+                "doc_id": "gold-publish-decision-mcd-auv-blocked",
+                "chunk_id": "gold-publish-decision-mcd-auv-blocked::chunk-001",
+                "source_kind": "gold_publish_decision",
+                "title": "Gold publish decision - McDonald's - auv",
+                "text": "McDonald's blocked AUV decision.",
+                "artifact_path": "data/gold/gold_publish_decisions.parquet",
+                "brand_names": json.dumps(["McDonald's"]),
+                "metric_names": json.dumps(["auv"]),
+                "as_of_date": "2024-12-31",
+                "publish_status": "blocked",
+                "confidence_score": 0.61,
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-mcd",
+                "metadata_json": json.dumps({"severity": "warning"}),
+                "filter_match": True,
+                "citation_present": True,
+                "is_relevant": False,
+                "relevance_label": "not_relevant",
+                "metadata_filters_json": json.dumps({"publish_status": "blocked"}),
+                "query_latency_ms": 1.2,
+                "failure_source": "retrieval",
+                "query_buckets_json": json.dumps(["brand_specific", "provenance_citation"]),
+            },
+            {
+                "query_id": "validation-error",
+                "query_text": "Show Taco Bell validation findings with error severity.",
+                "run_label": "bm25",
+                "stage": "retrieval",
+                "reranker_name": "",
+                "retriever_name": "bm25",
+                "rank": 1,
+                "score": 8.0,
+                "doc_id": "gold-publish-decision-taco-bell-auv-blocked",
+                "chunk_id": "gold-publish-decision-taco-bell-auv-blocked::chunk-001",
+                "source_kind": "gold_publish_decision",
+                "title": "Gold publish decision - Taco Bell - auv",
+                "text": "Taco Bell AUV blocked for external export.",
+                "artifact_path": "data/gold/gold_publish_decisions.parquet",
+                "brand_names": json.dumps(["Taco Bell"]),
+                "metric_names": json.dumps(["auv"]),
+                "as_of_date": "2024-12-31",
+                "publish_status": "blocked",
+                "confidence_score": 0.4,
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-taco",
+                "metadata_json": json.dumps({"severity": "warning"}),
+                "filter_match": False,
+                "citation_present": True,
+                "is_relevant": False,
+                "relevance_label": "not_relevant",
+                "metadata_filters_json": json.dumps({"source_kind": "gold_validation_flag"}),
+                "query_latency_ms": 1.1,
+                "failure_source": "filtering",
+                "query_buckets_json": json.dumps(["metadata_filter_heavy"]),
+            },
+        ]
+    ).to_parquet(run_dir / "per_query_results.parquet", index=False)
+    pd.DataFrame(
+        [
+            {
+                "retriever_name": "bm25",
+                "run_label": "bm25",
+                "stage": "retrieval",
+                "status": "warning",
+                "query_count": "2",
+                "judged_query_count": "2",
+                "recall_at_k": "0.0",
+                "mrr": "0.0",
+                "ndcg_at_k": "0.0",
+                "citation_precision": "1.0",
+                "metadata_filter_correctness": "0.5",
+                "latency_ms": "2.3",
+                "index_size_bytes": "193",
+            }
+        ]
+    ).to_csv(run_dir / "metrics.csv", index=False)
+    return run_dir
 
 
 JUDGMENT_COLUMNS = [
@@ -1209,6 +1404,28 @@ def test_validate_rag_benchmark_artifacts_cannot_write_under_reports_or_strategy
         )
 
 
+def test_rag_authoring_assist_rejects_reports_or_strategy_run_dirs(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    forbidden_run_dir = settings.reports_dir / "rag" / "benchmarks" / "fixture-run"
+    _write_authoring_assist_run_dir(forbidden_run_dir)
+
+    with pytest.raises(ValueError, match="must not be written under analyst-facing paths"):
+        summarize_rag_failures(
+            benchmark_dir=benchmark_dir,
+            run_dir=forbidden_run_dir,
+            settings=settings,
+        )
+
+    with pytest.raises(ValueError, match="must not be written under analyst-facing paths"):
+        mine_rag_hard_negatives(
+            benchmark_dir=benchmark_dir,
+            run_dir=forbidden_run_dir,
+            settings=settings,
+        )
+
+
 def test_inspect_rag_benchmark_query_returns_metadata_and_failure_source(tmp_path: Path) -> None:
     settings = build_settings(tmp_path)
     corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
@@ -1284,6 +1501,134 @@ def test_bootstrap_rag_judgments_does_not_overwrite_final_judgments(tmp_path: Pa
     )
     assert "suggestion_status" in workspace.columns
     assert "candidate_suggestion" in set(workspace["suggestion_status"])
+
+
+def test_seed_rag_queries_is_deterministic_and_preserves_queries_csv(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    _write_rag_source_artifacts(settings)
+    build_rag_corpus(settings=settings)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    original_queries = (benchmark_dir / "queries.csv").read_text(encoding="utf-8")
+
+    first = seed_rag_queries(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+    )
+    second = seed_rag_queries(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+    )
+
+    assert first.suggestions.to_dict(orient="records") == second.suggestions.to_dict(
+        orient="records"
+    )
+    assert (benchmark_dir / "queries.csv").read_text(encoding="utf-8") == original_queries
+    assert first.artifacts.suggested_queries_csv_path.exists()
+    assert first.artifacts.suggested_queries_markdown_path.exists()
+    assert "needs_human_review" in first.suggestions.columns
+
+
+def test_mine_rag_hard_negatives_finds_controlled_near_miss(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    corpus_path = settings.artifacts_dir / "rag" / "corpus" / "corpus.parquet"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_manual_corpus(corpus_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    run_dir = _write_authoring_assist_run_dir(
+        settings.artifacts_dir / "rag" / "benchmarks" / "fixture-run"
+    )
+
+    run = mine_rag_hard_negatives(
+        benchmark_dir=benchmark_dir,
+        run_dir=run_dir,
+        settings=settings,
+        corpus_path=corpus_path,
+    )
+
+    assert not run.suggestions.empty
+    assert "wrong_brand_near_miss" in set(run.suggestions["hard_negative_type"])
+    summary = run.artifacts.summary_markdown_path.read_text(encoding="utf-8")
+    assert "Hard Negative Suggestions" in summary
+    assert "reviewer candidates only" in summary
+
+
+def test_summarize_rag_failures_is_deterministic(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    run_dir = _write_authoring_assist_run_dir(
+        settings.artifacts_dir / "rag" / "benchmarks" / "fixture-run"
+    )
+
+    first = summarize_rag_failures(
+        benchmark_dir=benchmark_dir,
+        run_dir=run_dir,
+        settings=settings,
+    )
+    second = summarize_rag_failures(
+        benchmark_dir=benchmark_dir,
+        run_dir=run_dir,
+        settings=settings,
+    )
+
+    assert first.triage_rows.to_dict(orient="records") == second.triage_rows.to_dict(
+        orient="records"
+    )
+    assert {row["value"] for row in first.summary["bucket_counts"]} == {
+        "metadata filter miss",
+        "retrieval miss",
+    }
+    markdown = first.artifacts.triage_markdown_path.read_text(encoding="utf-8")
+    assert "## Bucket Counts" in markdown
+    assert "## Query Bucket Coverage" in markdown
+
+
+def test_authoring_summary_includes_failure_and_hard_negative_context(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    benchmark_dir = tmp_path / "benchmark-pack"
+    _write_benchmark_pack(benchmark_dir)
+    run_dir = _write_authoring_assist_run_dir(
+        settings.artifacts_dir / "rag" / "benchmarks" / "fixture-run"
+    )
+    working_dir = benchmark_dir / "working"
+    working_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                "query_id": "blocked-kpi",
+                "query_text": "Which Taco Bell KPI rows are blocked for external export?",
+                "run_label": "bm25",
+                "rank": 1,
+                "doc_id": "gold-publish-decision-mcd-auv-blocked",
+                "chunk_id": "gold-publish-decision-mcd-auv-blocked::chunk-001",
+                "source_kind": "gold_publish_decision",
+                "brand_names": "McDonald's",
+                "metric_names": "auv",
+                "publish_status": "blocked",
+                "hard_negative_type": "wrong_brand_near_miss",
+                "suggested_relevance_label": "not_relevant",
+                "suggestion_reason": "Wrong-brand near miss.",
+                "needs_human_review": "true",
+                "metadata_filters_json": '{"publish_status":"blocked"}',
+                "query_buckets_json": '["brand_specific"]',
+            }
+        ]
+    ).to_csv(working_dir / "hard_negative_suggestions.csv", index=False)
+
+    run = summarize_rag_benchmark_authoring(
+        benchmark_dir=benchmark_dir,
+        settings=settings,
+        run_dir=run_dir,
+    )
+
+    assert run.summary["failure_query_count"] == 2
+    assert run.summary["hard_negative_suggestion_count"] == 1
+    assert run.summary["top_failure_buckets"]
+    markdown = run.artifacts.summary_markdown_path.read_text(encoding="utf-8")
+    assert "## Failure Buckets" in markdown
+    assert "## Hard Negative Review Gaps" in markdown
 
 
 def test_validate_rag_reviewer_file_fails_cleanly_on_malformed_submission(tmp_path: Path) -> None:

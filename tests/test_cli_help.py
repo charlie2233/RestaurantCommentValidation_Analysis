@@ -28,9 +28,12 @@ from typer.testing import CliRunner
                 "build-rag-corpus",
                 "init-rag-benchmark",
                 "bootstrap-rag-judgments",
+                "seed-rag-queries",
                 "validate-rag-benchmark",
                 "validate-rag-reviewer-file",
                 "adjudicate-rag-benchmark",
+                "mine-rag-hard-negatives",
+                "summarize-rag-failures",
                 "summarize-rag-benchmark-authoring",
                 "eval-rag-retrieval",
                 "inspect-rag-benchmark",
@@ -123,6 +126,14 @@ from typer.testing import CliRunner
             ],
         ),
         (
+            ["seed-rag-queries", "--help"],
+            [
+                "deterministic analyst query suggestions",
+                "working/",
+                "queries.csv",
+            ],
+        ),
+        (
             ["validate-rag-benchmark", "--help"],
             [
                 "analyst-authored benchmark",
@@ -152,6 +163,22 @@ from typer.testing import CliRunner
                 "Compare reviewer judgments",
                 "adjudicated_judgments.csv",
                 "explicit override",
+            ],
+        ),
+        (
+            ["mine-rag-hard-negatives", "--help"],
+            [
+                "review-candidate hard negatives",
+                "retrieval run",
+                "final judgments",
+            ],
+        ),
+        (
+            ["summarize-rag-failures", "--help"],
+            [
+                "triage categories",
+                "benchmark cleanup",
+                "run-dir",
             ],
         ),
         (

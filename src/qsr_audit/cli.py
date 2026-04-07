@@ -22,10 +22,13 @@ from qsr_audit.rag import build_rag_corpus as build_rag_corpus_pipeline
 from qsr_audit.rag import eval_rag_retrieval as eval_rag_retrieval_pipeline
 from qsr_audit.rag import init_rag_benchmark as init_rag_benchmark_pipeline
 from qsr_audit.rag import inspect_rag_benchmark_query as inspect_rag_benchmark_query_pipeline
+from qsr_audit.rag import mine_rag_hard_negatives as mine_rag_hard_negatives_pipeline
 from qsr_audit.rag import rag_search as rag_search_pipeline
+from qsr_audit.rag import seed_rag_queries as seed_rag_queries_pipeline
 from qsr_audit.rag import (
     summarize_rag_benchmark_authoring as summarize_rag_benchmark_authoring_pipeline,
 )
+from qsr_audit.rag import summarize_rag_failures as summarize_rag_failures_pipeline
 from qsr_audit.rag import validate_rag_benchmark_pack as validate_rag_benchmark_pack_pipeline
 from qsr_audit.rag import validate_rag_reviewer_file as validate_rag_reviewer_file_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
@@ -263,6 +266,23 @@ RagOutputOption = Annotated[
         path_type=Path,
         help=(
             "Directory for non-analyst-facing retrieval artifacts. Defaults to `artifacts/rag/...`."
+        ),
+    ),
+]
+
+RunDirOption = Annotated[
+    Path,
+    typer.Option(
+        ...,
+        "--run-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        path_type=Path,
+        help=(
+            "Existing benchmark run directory under `artifacts/rag/benchmarks/` that contains "
+            "per-query results and metrics."
         ),
     ),
 ]
@@ -662,6 +682,28 @@ def bootstrap_rag_judgments_command(
     console.print(f"Bootstrap manifest: {run.artifacts.bootstrap_manifest_path}")
 
 
+@app.command("seed-rag-queries")
+def seed_rag_queries_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    corpus_path: CorpusPathOption = None,
+) -> None:
+    """Seed deterministic analyst query suggestions into `working/` without touching final `queries.csv`."""
+
+    try:
+        run = seed_rag_queries_pipeline(
+            benchmark_dir=benchmark_dir,
+            settings=get_settings(),
+            corpus_path=corpus_path,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG query seeding complete[/bold blue]")
+    console.print(f"Suggestions: {run.suggestion_count}")
+    console.print(f"Suggested queries CSV: {run.artifacts.suggested_queries_csv_path}")
+    console.print(f"Suggested queries summary: {run.artifacts.suggested_queries_markdown_path}")
+
+
 @app.command("validate-rag-benchmark")
 def validate_rag_benchmark_command(
     benchmark_dir: RequiredBenchmarkDirOption,
@@ -796,6 +838,30 @@ def eval_rag_retrieval_command(
     console.print(f"Summary: {run.artifacts.summary_markdown_path}")
 
 
+@app.command("mine-rag-hard-negatives")
+def mine_rag_hard_negatives_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    run_dir: RunDirOption,
+    corpus_path: CorpusPathOption = None,
+) -> None:
+    """Mine review-candidate hard negatives from one retrieval run without changing final judgments."""
+
+    try:
+        run = mine_rag_hard_negatives_pipeline(
+            benchmark_dir=benchmark_dir,
+            run_dir=run_dir,
+            settings=get_settings(),
+            corpus_path=corpus_path,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG hard-negative mining complete[/bold blue]")
+    console.print(f"Suggestions: {len(run.suggestions.index)}")
+    console.print(f"Suggestion CSV: {run.artifacts.suggestions_csv_path}")
+    console.print(f"Summary: {run.artifacts.summary_markdown_path}")
+
+
 @app.command("adjudicate-rag-benchmark")
 def adjudicate_rag_benchmark_command(
     benchmark_dir: RequiredBenchmarkDirOption,
@@ -831,9 +897,47 @@ def adjudicate_rag_benchmark_command(
         console.print(f"Adjudicated judgments: {run.artifacts.adjudicated_judgments_path}")
 
 
+@app.command("summarize-rag-failures")
+def summarize_rag_failures_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    run_dir: RunDirOption,
+) -> None:
+    """Bucket retrieval benchmark failures into triage categories for benchmark cleanup."""
+
+    try:
+        run = summarize_rag_failures_pipeline(
+            benchmark_dir=benchmark_dir,
+            run_dir=run_dir,
+            settings=get_settings(),
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG failure triage complete[/bold blue]")
+    console.print(f"Triaged rows: {len(run.triage_rows.index)}")
+    console.print(f"Triage CSV: {run.artifacts.triage_csv_path}")
+    console.print(f"Triage JSON: {run.artifacts.triage_json_path}")
+    console.print(f"Triage summary: {run.artifacts.triage_markdown_path}")
+
+
 @app.command("summarize-rag-benchmark-authoring")
 def summarize_rag_benchmark_authoring_command(
     benchmark_dir: RequiredBenchmarkDirOption,
+    run_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--run-dir",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            path_type=Path,
+            help=(
+                "Optional benchmark run directory under `artifacts/rag/benchmarks/` used to "
+                "surface dominant failure buckets and hard-negative review gaps."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Summarize benchmark authoring coverage, gaps, and current judgment readiness."""
 
@@ -841,14 +945,16 @@ def summarize_rag_benchmark_authoring_command(
         run = summarize_rag_benchmark_authoring_pipeline(
             benchmark_dir=benchmark_dir,
             settings=get_settings(),
+            run_dir=run_dir,
         )
-    except ValueError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
     console.print("[bold blue]RAG benchmark authoring summary complete[/bold blue]")
     console.print(f"Pack status: {run.summary['pack_status']}")
     console.print(f"Judgments source: {run.summary['judgments_source']}")
     console.print(f"Unjudged queries: {len(run.summary['unjudged_queries'])}")
+    console.print(f"Hard-negative suggestions: {run.summary['hard_negative_suggestion_count']}")
     console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
     console.print(f"Summary: {run.artifacts.summary_markdown_path}")
     console.print(f"Coverage rows CSV: {run.artifacts.coverage_rows_csv_path}")

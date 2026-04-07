@@ -71,6 +71,7 @@ class RagBenchmarkArtifacts:
 
     metrics_json_path: Path
     metrics_csv_path: Path
+    per_query_metrics_json_path: Path
     results_parquet_path: Path
     summary_markdown_path: Path
     failure_cases_markdown_path: Path
@@ -85,6 +86,7 @@ class RagBenchmarkRun:
 
     corpus: pd.DataFrame
     queries: list[dict[str, Any]]
+    query_metrics: pd.DataFrame
     results: pd.DataFrame
     metrics: pd.DataFrame
     query_bucket_metrics: pd.DataFrame
@@ -358,6 +360,7 @@ def eval_rag_retrieval(
         if results_frames and any(not frame.empty for frame in results_frames)
         else pd.DataFrame(columns=_result_columns())
     )
+    query_metrics = pd.DataFrame(all_query_metrics)
     metrics = pd.DataFrame(metrics_rows)
     query_bucket_metrics = pd.DataFrame(
         query_bucket_metrics_rows,
@@ -414,6 +417,7 @@ def eval_rag_retrieval(
     artifacts = _write_outputs(
         output_root=resolved_output_root,
         queries=queries,
+        query_metrics=query_metrics,
         results=results,
         metrics=metrics,
         query_bucket_metrics=query_bucket_metrics,
@@ -424,6 +428,7 @@ def eval_rag_retrieval(
     return RagBenchmarkRun(
         corpus=corpus,
         queries=queries,
+        query_metrics=query_metrics,
         results=results,
         metrics=metrics,
         query_bucket_metrics=query_bucket_metrics,
@@ -1049,8 +1054,10 @@ def _annotate_result_rows(
     annotated["query_id"] = query_spec["query_id"]
     annotated["query_text"] = query_spec["query"]
     annotated["is_relevant"] = annotated.apply(
-        lambda row: row["chunk_id"] in set(query_spec.get("relevant_chunk_ids") or [])
-        or row["doc_id"] in set(query_spec.get("relevant_doc_ids") or []),
+        lambda row: (
+            row["chunk_id"] in set(query_spec.get("relevant_chunk_ids") or [])
+            or row["doc_id"] in set(query_spec.get("relevant_doc_ids") or [])
+        ),
         axis=1,
     )
     annotated["relevance_label"] = annotated["chunk_id"].map(
@@ -1435,6 +1442,7 @@ def _write_outputs(
     *,
     output_root: Path,
     queries: list[dict[str, Any]],
+    query_metrics: pd.DataFrame,
     results: pd.DataFrame,
     metrics: pd.DataFrame,
     query_bucket_metrics: pd.DataFrame,
@@ -1444,6 +1452,7 @@ def _write_outputs(
 ) -> RagBenchmarkArtifacts:
     metrics_json_path = output_root / "metrics.json"
     metrics_csv_path = output_root / "metrics.csv"
+    per_query_metrics_json_path = output_root / "per_query_metrics.json"
     results_parquet_path = output_root / "per_query_results.parquet"
     summary_markdown_path = output_root / "summary.md"
     failure_cases_markdown_path = output_root / "failure_cases.md"
@@ -1456,6 +1465,10 @@ def _write_outputs(
         encoding="utf-8",
     )
     metrics.to_csv(metrics_csv_path, index=False)
+    per_query_metrics_json_path.write_text(
+        json.dumps(query_metrics.to_dict(orient="records"), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     results.to_parquet(results_parquet_path, index=False)
     summary_markdown_path.write_text(render_rag_benchmark_summary(summary), encoding="utf-8")
     failure_cases_markdown_path.write_text(
@@ -1473,6 +1486,7 @@ def _write_outputs(
     return RagBenchmarkArtifacts(
         metrics_json_path=metrics_json_path,
         metrics_csv_path=metrics_csv_path,
+        per_query_metrics_json_path=per_query_metrics_json_path,
         results_parquet_path=results_parquet_path,
         summary_markdown_path=summary_markdown_path,
         failure_cases_markdown_path=failure_cases_markdown_path,
