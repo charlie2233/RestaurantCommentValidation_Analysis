@@ -11,8 +11,10 @@ from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.governance import (
     DataClassification,
+    begin_command_audit,
     latest_manifest_path,
     write_artifact_manifest,
+    write_command_audit_log,
 )
 from qsr_audit.release import preflight_release
 from typer.testing import CliRunner
@@ -108,6 +110,46 @@ def test_preflight_release_fails_when_upstream_manifests_are_missing(tmp_path: P
     assert "upstream_manifests" in failed_checks
 
 
+def test_preflight_release_partial_manifests_fail_cleanly_without_crashing(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    _write_gold_publish_outputs(settings)
+    _write_required_manifest_fixtures(
+        settings,
+        include_commands=("validate-workbook", "run-syntheticness", "reconcile"),
+    )
+
+    run = preflight_release(settings=settings)
+
+    assert run.passed is False
+    failed_checks = {check.name: check for check in run.checks if check.status == "fail"}
+    warning_checks = {check.name: check for check in run.checks if check.status == "warning"}
+    assert "upstream_manifests" in failed_checks
+    assert "gate_manifest_references" in warning_checks
+    assert warning_checks["gate_manifest_references"].details["missing_manifest_commands"] == [
+        "gate-gold"
+    ]
+
+
+def test_preflight_release_missing_gate_gold_manifest_does_not_raise_key_error(
+    tmp_path: Path,
+) -> None:
+    settings = build_settings(tmp_path)
+    _write_gold_publish_outputs(settings)
+    _write_required_manifest_fixtures(
+        settings,
+        include_commands=("validate-workbook", "run-syntheticness", "reconcile"),
+    )
+
+    run = preflight_release(settings=settings)
+
+    summary_payload = json.loads(run.artifacts.summary_json_path.read_text(encoding="utf-8"))
+    gate_check = next(
+        check for check in summary_payload["checks"] if check["name"] == "gate_manifest_references"
+    )
+    assert gate_check["status"] == "warning"
+    assert gate_check["details"]["missing_manifest_commands"] == ["gate-gold"]
+
+
 def test_preflight_release_passes_on_clean_fixture(tmp_path: Path) -> None:
     settings = build_settings(tmp_path)
     _write_gold_publish_outputs(settings)
@@ -140,6 +182,110 @@ def test_preflight_release_rejects_non_publishable_rows_in_publishable_artifact(
         "publishable_kpis.parquet contains advisory or blocked rows."
         in failed_checks["gold_artifact_consistency"].details["issues"]
     )
+
+
+def test_preflight_release_rejects_duplicate_publishable_rows(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    _write_gold_publish_outputs(settings)
+    _write_required_manifest_fixtures(settings)
+
+    publishable_path = settings.data_gold / "publishable_kpis.parquet"
+    publishable = pd.read_parquet(publishable_path)
+    pd.concat([publishable, publishable.iloc[[0]]], ignore_index=True).to_parquet(
+        publishable_path,
+        index=False,
+    )
+
+    run = preflight_release(settings=settings)
+
+    assert run.passed is False
+    failed_checks = {check.name: check for check in run.checks if check.status == "fail"}
+    assert "gold_artifact_consistency" in failed_checks
+    assert (
+        "publishable_kpis.parquet contains duplicated KPI rows."
+        in failed_checks["gold_artifact_consistency"].details["issues"]
+    )
+
+
+def test_preflight_release_rejects_duplicate_blocked_rows(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    _write_gold_publish_outputs(settings)
+    _write_required_manifest_fixtures(settings)
+
+    blocked_path = settings.data_gold / "blocked_kpis.parquet"
+    blocked = pd.read_parquet(blocked_path)
+    pd.concat([blocked, blocked.iloc[[0]]], ignore_index=True).to_parquet(
+        blocked_path,
+        index=False,
+    )
+
+    run = preflight_release(settings=settings)
+
+    assert run.passed is False
+    failed_checks = {check.name: check for check in run.checks if check.status == "fail"}
+    assert "gold_artifact_consistency" in failed_checks
+    assert (
+        "blocked_kpis.parquet contains duplicated KPI rows."
+        in failed_checks["gold_artifact_consistency"].details["issues"]
+    )
+
+
+def test_manifest_and_audit_writes_use_distinct_run_ids_for_rapid_runs(tmp_path: Path) -> None:
+    settings = build_settings(tmp_path)
+    output_path = settings.data_gold / "gold_publish_decisions.parquet"
+    pd.DataFrame([{"metric_name": "system_sales"}]).to_parquet(output_path, index=False)
+
+    first_session = begin_command_audit("gate-gold")
+    second_session = begin_command_audit("gate-gold")
+    assert first_session.run_id != second_session.run_id
+
+    first_manifest = write_artifact_manifest(
+        settings=settings,
+        command_name="gate-gold",
+        input_paths=[settings.data_gold / "reconciled_core_metrics.parquet"],
+        output_paths=[output_path],
+        row_counts={"decision_rows": 1},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="release_manager",
+        publish_status_scope="publishable_advisory_blocked",
+        run_timestamp=first_session.start_timestamp,
+        run_id=first_session.run_id,
+    )
+    second_manifest = write_artifact_manifest(
+        settings=settings,
+        command_name="gate-gold",
+        input_paths=[settings.data_gold / "reconciled_core_metrics.parquet"],
+        output_paths=[output_path],
+        row_counts={"decision_rows": 1},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="release_manager",
+        publish_status_scope="publishable_advisory_blocked",
+        run_timestamp=second_session.start_timestamp,
+        run_id=second_session.run_id,
+    )
+    first_audit = write_command_audit_log(
+        settings=settings,
+        session=first_session,
+        status="success",
+        input_paths=[settings.data_gold / "reconciled_core_metrics.parquet"],
+        output_paths=[output_path],
+        manifest_path=first_manifest,
+    )
+    second_audit = write_command_audit_log(
+        settings=settings,
+        session=second_session,
+        status="success",
+        input_paths=[settings.data_gold / "reconciled_core_metrics.parquet"],
+        output_paths=[output_path],
+        manifest_path=second_manifest,
+    )
+
+    assert first_manifest != second_manifest
+    assert first_audit != second_audit
+    assert first_manifest.exists()
+    assert second_manifest.exists()
+    assert first_audit.exists()
+    assert second_audit.exists()
 
 
 def _set_settings_env(monkeypatch: pytest.MonkeyPatch, settings: Settings) -> None:
@@ -192,7 +338,16 @@ def _write_gold_publish_outputs(settings: Settings) -> pd.DataFrame:
     return decisions
 
 
-def _write_required_manifest_fixtures(settings: Settings) -> None:
+def _write_required_manifest_fixtures(
+    settings: Settings,
+    *,
+    include_commands: tuple[str, ...] = (
+        "validate-workbook",
+        "run-syntheticness",
+        "reconcile",
+        "gate-gold",
+    ),
+) -> None:
     validation_summary = settings.reports_dir / "validation" / "validation_summary.md"
     validation_results = settings.reports_dir / "validation" / "validation_results.json"
     validation_summary.parent.mkdir(parents=True, exist_ok=True)
@@ -233,87 +388,97 @@ def _write_required_manifest_fixtures(settings: Settings) -> None:
     reconciliation_summary.write_text("# Reconciliation\n", encoding="utf-8")
     reference_summary.write_text("# Reference Coverage\n", encoding="utf-8")
 
-    validate_manifest = write_artifact_manifest(
-        settings=settings,
-        command_name="validate-workbook",
-        input_paths=[settings.data_raw / "source_workbook.xlsx"],
-        output_paths=[
-            validation_summary,
-            validation_results,
-            settings.data_gold / "validation_flags.parquet",
-        ],
-        row_counts={"validation_findings": 1},
-        data_classification=DataClassification.CONFIDENTIAL,
-        intended_audience="analyst",
-        publish_status_scope="working_layer_findings",
-        warnings_count=1,
-        errors_count=0,
-    )
-    write_artifact_manifest(
-        settings=settings,
-        command_name="run-syntheticness",
-        input_paths=[settings.data_silver / "core_brand_metrics.parquet"],
-        output_paths=[synthetic_report, settings.data_gold / "syntheticness_signals.parquet"],
-        row_counts={"syntheticness_signals": 1},
-        data_classification=DataClassification.INTERNAL,
-        intended_audience="analyst",
-        publish_status_scope="experimental_signals",
-        warnings_count=1,
-        errors_count=0,
-        upstream_artifact_references=[validate_manifest],
-    )
-    write_artifact_manifest(
-        settings=settings,
-        command_name="reconcile",
-        input_paths=[settings.data_silver / "core_brand_metrics.parquet", settings.data_reference],
-        output_paths=[
-            settings.data_gold / "reconciled_core_metrics.parquet",
-            settings.data_gold / "provenance_registry.parquet",
-            settings.data_gold / "reference_coverage.parquet",
-            reconciliation_summary,
-            reference_summary,
-        ],
-        row_counts={
-            "reconciled_core_metrics": 1,
-            "provenance_registry": 1,
-            "reference_coverage": 1,
-        },
-        data_classification=DataClassification.CONFIDENTIAL,
-        intended_audience="analyst",
-        publish_status_scope="all_gold_rows",
-        warnings_count=0,
-        errors_count=0,
-        upstream_artifact_references=[validate_manifest],
-    )
-    write_artifact_manifest(
-        settings=settings,
-        command_name="gate-gold",
-        input_paths=[
-            settings.data_gold / "reconciled_core_metrics.parquet",
-            settings.data_gold / "provenance_registry.parquet",
-            settings.data_gold / "validation_flags.parquet",
-            settings.data_gold / "reference_coverage.parquet",
-            settings.data_gold / "syntheticness_signals.parquet",
-        ],
-        output_paths=[
-            settings.data_gold / "gold_publish_decisions.parquet",
-            settings.data_gold / "publishable_kpis.parquet",
-            settings.data_gold / "blocked_kpis.parquet",
-        ],
-        row_counts={
-            "decision_rows": 3,
-            "publishable_rows": 1,
-            "advisory_rows": 1,
-            "blocked_rows": 1,
-        },
-        data_classification=DataClassification.INTERNAL,
-        intended_audience="release_manager",
-        publish_status_scope="publishable_advisory_blocked",
-        warnings_count=1,
-        errors_count=1,
-        upstream_artifact_references=[
-            latest_manifest_path(settings, "validate-workbook"),
-            latest_manifest_path(settings, "run-syntheticness"),
-            latest_manifest_path(settings, "reconcile"),
-        ],
-    )
+    validate_manifest = None
+    if "validate-workbook" in include_commands:
+        validate_manifest = write_artifact_manifest(
+            settings=settings,
+            command_name="validate-workbook",
+            input_paths=[settings.data_raw / "source_workbook.xlsx"],
+            output_paths=[
+                validation_summary,
+                validation_results,
+                settings.data_gold / "validation_flags.parquet",
+            ],
+            row_counts={"validation_findings": 1},
+            data_classification=DataClassification.CONFIDENTIAL,
+            intended_audience="analyst",
+            publish_status_scope="working_layer_findings",
+            warnings_count=1,
+            errors_count=0,
+        )
+    if "run-syntheticness" in include_commands:
+        upstream_refs = [validate_manifest] if validate_manifest is not None else []
+        write_artifact_manifest(
+            settings=settings,
+            command_name="run-syntheticness",
+            input_paths=[settings.data_silver / "core_brand_metrics.parquet"],
+            output_paths=[synthetic_report, settings.data_gold / "syntheticness_signals.parquet"],
+            row_counts={"syntheticness_signals": 1},
+            data_classification=DataClassification.INTERNAL,
+            intended_audience="analyst",
+            publish_status_scope="experimental_signals",
+            warnings_count=1,
+            errors_count=0,
+            upstream_artifact_references=upstream_refs,
+        )
+    if "reconcile" in include_commands:
+        upstream_refs = [validate_manifest] if validate_manifest is not None else []
+        write_artifact_manifest(
+            settings=settings,
+            command_name="reconcile",
+            input_paths=[
+                settings.data_silver / "core_brand_metrics.parquet",
+                settings.data_reference,
+            ],
+            output_paths=[
+                settings.data_gold / "reconciled_core_metrics.parquet",
+                settings.data_gold / "provenance_registry.parquet",
+                settings.data_gold / "reference_coverage.parquet",
+                reconciliation_summary,
+                reference_summary,
+            ],
+            row_counts={
+                "reconciled_core_metrics": 1,
+                "provenance_registry": 1,
+                "reference_coverage": 1,
+            },
+            data_classification=DataClassification.CONFIDENTIAL,
+            intended_audience="analyst",
+            publish_status_scope="all_gold_rows",
+            warnings_count=0,
+            errors_count=0,
+            upstream_artifact_references=upstream_refs,
+        )
+    if "gate-gold" in include_commands:
+        write_artifact_manifest(
+            settings=settings,
+            command_name="gate-gold",
+            input_paths=[
+                settings.data_gold / "reconciled_core_metrics.parquet",
+                settings.data_gold / "provenance_registry.parquet",
+                settings.data_gold / "validation_flags.parquet",
+                settings.data_gold / "reference_coverage.parquet",
+                settings.data_gold / "syntheticness_signals.parquet",
+            ],
+            output_paths=[
+                settings.data_gold / "gold_publish_decisions.parquet",
+                settings.data_gold / "publishable_kpis.parquet",
+                settings.data_gold / "blocked_kpis.parquet",
+            ],
+            row_counts={
+                "decision_rows": 3,
+                "publishable_rows": 1,
+                "advisory_rows": 1,
+                "blocked_rows": 1,
+            },
+            data_classification=DataClassification.INTERNAL,
+            intended_audience="release_manager",
+            publish_status_scope="publishable_advisory_blocked",
+            warnings_count=1,
+            errors_count=1,
+            upstream_artifact_references=[
+                latest_manifest_path(settings, "validate-workbook"),
+                latest_manifest_path(settings, "run-syntheticness"),
+                latest_manifest_path(settings, "reconcile"),
+            ],
+        )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -91,8 +92,7 @@ def preflight_release(
 
     manifest_check, manifests = _check_upstream_manifests(resolved_settings)
     checks.append(manifest_check)
-    if manifests:
-        checks.append(_check_gate_manifest_references(manifests))
+    checks.append(_check_gate_manifest_references(manifests))
 
     checks.append(_check_experimental_separation(resolved_settings))
 
@@ -203,17 +203,32 @@ def _check_gold_consistency(
 
     expected_publishable = decisions.loc[decisions["publish_status"] == "publishable"].copy()
     expected_blocked = decisions.loc[decisions["publish_status"] == "blocked"].copy()
-    if _decision_keys(expected_publishable) != _decision_keys(publishable):
+    duplicate_publishable = _duplicate_decision_keys(publishable)
+    if duplicate_publishable:
+        issues.append("publishable_kpis.parquet contains duplicated KPI rows.")
+    duplicate_blocked = _duplicate_decision_keys(blocked)
+    if duplicate_blocked:
+        issues.append("blocked_kpis.parquet contains duplicated KPI rows.")
+
+    if _decision_key_counts(expected_publishable) != _decision_key_counts(publishable):
         issues.append("publishable_kpis.parquet does not match the publishable decision subset.")
-    if _decision_keys(expected_blocked) != _decision_keys(blocked):
+    if _decision_key_counts(expected_blocked) != _decision_key_counts(blocked):
         issues.append("blocked_kpis.parquet does not match the blocked decision subset.")
 
     if issues:
+        details: dict[str, Any] = {"issues": issues}
+        duplicate_details: dict[str, list[dict[str, Any]]] = {}
+        if duplicate_publishable:
+            duplicate_details["publishable_kpis"] = duplicate_publishable
+        if duplicate_blocked:
+            duplicate_details["blocked_kpis"] = duplicate_blocked
+        if duplicate_details:
+            details["duplicate_rows"] = duplicate_details
         return ReleasePreflightCheck(
             name="gold_artifact_consistency",
             status="fail",
             message="Gold publish artifacts are internally inconsistent.",
-            details={"issues": issues},
+            details=details,
         )
 
     message = (
@@ -284,6 +299,19 @@ def _check_upstream_manifests(
 
 
 def _check_gate_manifest_references(manifests: dict[str, Any]) -> ReleasePreflightCheck:
+    required_commands = {"gate-gold", "validate-workbook", "run-syntheticness", "reconcile"}
+    missing_commands = sorted(required_commands - set(manifests))
+    if missing_commands:
+        return ReleasePreflightCheck(
+            name="gate_manifest_references",
+            status="warning",
+            message=(
+                "Gate manifest lineage references were not checked because required manifests "
+                "are missing."
+            ),
+            details={"skipped": True, "missing_manifest_commands": missing_commands},
+        )
+
     gate_manifest = manifests["gate-gold"]["manifest"]
     referenced = set(gate_manifest.upstream_artifact_references)
     required = {
@@ -387,17 +415,33 @@ def _write_preflight_outputs(
     )
 
 
-def _decision_keys(frame: pd.DataFrame) -> set[tuple[str, str, str]]:
+def _decision_key_counts(frame: pd.DataFrame) -> Counter[tuple[str, str, str]]:
+    counts: Counter[tuple[str, str, str]] = Counter()
     if frame.empty:
-        return set()
-    return {
-        (
+        return counts
+    for row in frame.to_dict(orient="records"):
+        key = (
             str(row.get("canonical_brand_name") or row.get("brand_name") or ""),
             str(row.get("metric_name") or ""),
             str(row.get("publish_status") or ""),
         )
-        for row in frame.to_dict(orient="records")
-    }
+        counts[key] += 1
+    return counts
+
+
+def _duplicate_decision_keys(frame: pd.DataFrame) -> list[dict[str, Any]]:
+    return [
+        {
+            "brand_name": brand_name,
+            "metric_name": metric_name,
+            "publish_status": publish_status,
+            "count": count,
+        }
+        for (brand_name, metric_name, publish_status), count in sorted(
+            _decision_key_counts(frame).items()
+        )
+        if count > 1
+    ]
 
 
 __all__ = [

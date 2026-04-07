@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from itertools import count
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_VERSION = "1.0.0"
 AUDIT_LOG_VERSION = "1.0.0"
+_RUN_ID_SEQUENCE = count()
 
 
 class DataClassification(StrEnum):
@@ -82,7 +84,7 @@ def begin_command_audit(command_name: str) -> CommandAuditSession:
     return CommandAuditSession(
         command_name=command_name,
         start_timestamp=timestamp,
-        run_id=_timestamp_slug(timestamp),
+        run_id=_unique_run_id(timestamp),
     )
 
 
@@ -113,7 +115,7 @@ def write_artifact_manifest(
     resolved_inputs = _normalize_paths(input_paths)
     resolved_outputs = _normalize_paths(output_paths)
     manifest_timestamp = run_timestamp or utc_now_iso()
-    manifest_run_id = run_id or _timestamp_slug(manifest_timestamp)
+    manifest_run_id = run_id or _unique_run_id(manifest_timestamp)
 
     payload = ArtifactManifest(
         command_name=command_name,
@@ -197,7 +199,7 @@ def write_command_audit_log(
 def utc_now_iso() -> str:
     """Return a UTC timestamp suitable for JSON logs and manifests."""
 
-    return datetime.now(UTC).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).isoformat(timespec="microseconds")
 
 
 def _manifest_directory(settings: Settings, command_name: str) -> Path:
@@ -265,6 +267,10 @@ def _slugify(value: str) -> str:
 
 def _timestamp_slug(timestamp: str) -> str:
     return timestamp.replace(":", "").replace("-", "").replace("+00:00", "Z").replace("T", "T")
+
+
+def _unique_run_id(timestamp: str) -> str:
+    return f"{_timestamp_slug(timestamp)}-{next(_RUN_ID_SEQUENCE):04d}"
 
 
 __all__ = [
