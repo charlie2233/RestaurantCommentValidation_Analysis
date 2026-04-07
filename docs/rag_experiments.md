@@ -24,9 +24,13 @@ Out of scope in this PR:
 ## Retrieval commands
 
 ```bash
+qsr-audit init-rag-benchmark --name my-pack --author alice
 qsr-audit build-rag-corpus
-qsr-audit validate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
+qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
 qsr-audit rag-search --query "Which KPI rows are blocked?" --top-k 5
 ```
@@ -102,6 +106,14 @@ The benchmark validator catches:
 
 Benchmark validation output lives under `artifacts/rag/benchmarks/validation/`.
 
+Human authoring workflow additions:
+
+- `init-rag-benchmark` creates a local pack scaffold under `data/rag_benchmarks/<pack>/`
+- `bootstrap-rag-judgments` writes suggestion-only reviewer work files under `data/rag_benchmarks/<pack>/working/`
+- `validate-rag-reviewer-file` checks reviewer submissions under `reviewers/<name>/judgments.csv`
+- `adjudicate-rag-benchmark` compares reviewer files and writes conflict reports under `artifacts/rag/benchmarks/adjudication/`
+- `summarize-rag-benchmark-authoring` reports benchmark coverage gaps under `artifacts/rag/benchmarks/authoring/`
+
 ## Evaluation outputs
 
 Minimum evaluation metrics:
@@ -135,6 +147,11 @@ still requires:
 - reviewed failure cases for low-recall queries
 - ambiguity flags where multiple interpretations are realistic
 - citation requirements for provenance-sensitive lookups
+
+Draft or single-reviewer judgments should not be treated as final benchmark
+evidence. `eval-rag-retrieval` prefers `adjudicated_judgments.csv` only when the
+pack metadata marks the pack as truly adjudicated, and warns clearly when the
+pack is still provisional or force-overridden.
 
 ## Reranking
 

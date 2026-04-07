@@ -15,12 +15,19 @@ from qsr_audit.forecasting import forecast_baselines as forecast_baselines_pipel
 from qsr_audit.forecasting import snapshot_gold_history as snapshot_gold_history_pipeline
 from qsr_audit.gold import gate_gold_publish as gate_gold_publish_pipeline
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
+from qsr_audit.rag import adjudicate_rag_benchmark as adjudicate_rag_benchmark_pipeline
 from qsr_audit.rag import available_reranker_names, resolve_rag_corpus_path
+from qsr_audit.rag import bootstrap_rag_judgments as bootstrap_rag_judgments_pipeline
 from qsr_audit.rag import build_rag_corpus as build_rag_corpus_pipeline
 from qsr_audit.rag import eval_rag_retrieval as eval_rag_retrieval_pipeline
+from qsr_audit.rag import init_rag_benchmark as init_rag_benchmark_pipeline
 from qsr_audit.rag import inspect_rag_benchmark_query as inspect_rag_benchmark_query_pipeline
 from qsr_audit.rag import rag_search as rag_search_pipeline
+from qsr_audit.rag import (
+    summarize_rag_benchmark_authoring as summarize_rag_benchmark_authoring_pipeline,
+)
 from qsr_audit.rag import validate_rag_benchmark_pack as validate_rag_benchmark_pack_pipeline
+from qsr_audit.rag import validate_rag_reviewer_file as validate_rag_reviewer_file_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
 from qsr_audit.reporting import write_reports as write_reports_pipeline
@@ -193,6 +200,57 @@ BenchmarkDirOption = Annotated[
             "Directory containing analyst-authored `queries.csv`, `judgments.csv`, and "
             "optional `filters.csv` / `query_groups.csv`."
         ),
+    ),
+]
+
+RequiredBenchmarkDirOption = Annotated[
+    Path,
+    typer.Option(
+        ...,
+        "--benchmark-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        path_type=Path,
+        help=(
+            "Directory containing analyst-authored benchmark pack files under "
+            "`data/rag_benchmarks/<pack>/`."
+        ),
+    ),
+]
+
+BenchmarkNameOption = Annotated[
+    str,
+    typer.Option(
+        ...,
+        "--name",
+        help="Benchmark pack name. This becomes the local directory under `data/rag_benchmarks/`.",
+    ),
+]
+
+ReviewerNameOption = Annotated[
+    str,
+    typer.Option(
+        ...,
+        "--reviewer",
+        help="Reviewer name used to resolve `reviewers/<name>/judgments.csv` inside the pack.",
+    ),
+]
+
+BenchmarkAuthorsOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--author",
+        help="Analyst or reviewer name to record in the pack metadata. Repeatable.",
+    ),
+]
+
+BenchmarkNotesOption = Annotated[
+    str,
+    typer.Option(
+        "--notes",
+        help="Optional pack notes stored in metadata.json.",
     ),
 ]
 
@@ -532,27 +590,84 @@ def build_rag_corpus_command(
     console.print(f"Manifest: {run.artifacts.manifest_path}")
 
 
+@app.command("init-rag-benchmark")
+def init_rag_benchmark_command(
+    name: BenchmarkNameOption,
+    author: BenchmarkAuthorsOption = None,
+    notes: BenchmarkNotesOption = "",
+) -> None:
+    """Initialize a local benchmark pack with templates, metadata, and an analyst checklist."""
+
+    try:
+        run = init_rag_benchmark_pipeline(
+            name=name,
+            settings=get_settings(),
+            authors=tuple(author or []),
+            notes=notes,
+        )
+    except (FileExistsError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG benchmark pack initialized[/bold blue]")
+    console.print(f"Benchmark dir: {run.benchmark_dir}")
+    console.print(f"Metadata: {run.artifacts.metadata_path}")
+    console.print(f"README: {run.artifacts.readme_path}")
+    console.print(f"Checklist: {run.artifacts.checklist_path}")
+    console.print(f"Queries template: {run.artifacts.queries_path}")
+    console.print(f"Judgments template: {run.artifacts.judgments_path}")
+
+
+@app.command("bootstrap-rag-judgments")
+def bootstrap_rag_judgments_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    corpus_path: CorpusPathOption = None,
+    retriever_name: str = typer.Option(
+        "bm25",
+        "--retriever",
+        help="Retriever slug such as `bm25`, `dense-minilm`, or `dense-bge-small`.",
+    ),
+    top_k: int = typer.Option(
+        10,
+        "--top-k",
+        min=1,
+        help="Number of first-pass candidate chunks to suggest per query.",
+    ),
+    allow_model_download: bool = typer.Option(
+        False,
+        "--allow-model-download/--skip-model-download",
+        help="Allow optional dense retrievers to download local model weights when not already cached.",
+    ),
+) -> None:
+    """Bootstrap candidate retrieval suggestions and first-pass candidate chunks for manual benchmark judgment authoring."""
+
+    try:
+        run = bootstrap_rag_judgments_pipeline(
+            benchmark_dir=benchmark_dir,
+            settings=get_settings(),
+            corpus_path=corpus_path,
+            retriever_name=retriever_name,
+            top_k=top_k,
+            allow_model_download=allow_model_download,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG judgment bootstrap complete[/bold blue]")
+    console.print(f"Queries: {run.query_count}")
+    console.print(f"Candidate rows: {run.candidate_count}")
+    console.print(f"Query specs: {run.artifacts.query_specs_json_path}")
+    console.print(f"Candidate parquet: {run.artifacts.candidate_results_parquet_path}")
+    console.print(f"Candidate CSV: {run.artifacts.candidate_results_csv_path}")
+    console.print(f"Judgment workspace: {run.artifacts.judgment_workspace_csv_path}")
+    console.print(f"Bootstrap manifest: {run.artifacts.bootstrap_manifest_path}")
+
+
 @app.command("validate-rag-benchmark")
 def validate_rag_benchmark_command(
-    benchmark_dir: Annotated[
-        Path,
-        typer.Option(
-            ...,
-            "--benchmark-dir",
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            readable=True,
-            path_type=Path,
-            help=(
-                "Directory containing analyst-authored benchmark CSV files such as "
-                "`queries.csv` and `judgments.csv`."
-            ),
-        ),
-    ],
+    benchmark_dir: RequiredBenchmarkDirOption,
     corpus_path: CorpusPathOption = None,
 ) -> None:
-    """Validate an analyst-authored benchmark pack against the current vetted retrieval corpus."""
+    """Validate an analyst-authored benchmark pack built from `queries.csv` and `judgments.csv`."""
 
     settings = get_settings()
     resolved_corpus_path = resolve_rag_corpus_path(
@@ -586,6 +701,36 @@ def validate_rag_benchmark_command(
     console.print(f"Validation JSON: {run.artifacts.validation_json_path}")
     console.print(f"Validation summary: {run.artifacts.validation_markdown_path}")
     console.print(f"Query specs: {run.artifacts.query_specs_json_path}")
+    if not run.passed:
+        raise typer.Exit(code=1)
+
+
+@app.command("validate-rag-reviewer-file")
+def validate_rag_reviewer_file_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    reviewer: ReviewerNameOption,
+    corpus_path: CorpusPathOption = None,
+) -> None:
+    """Validate one reviewer-specific `reviewers/<name>/judgments.csv` file against the corpus."""
+
+    try:
+        run = validate_rag_reviewer_file_pipeline(
+            benchmark_dir=benchmark_dir,
+            reviewer=reviewer,
+            settings=get_settings(),
+            corpus_path=corpus_path,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    error_count = len([issue for issue in run.issues if issue["severity"] == "error"])
+    warning_count = len([issue for issue in run.issues if issue["severity"] == "warning"])
+    console.print("[bold blue]RAG reviewer validation complete[/bold blue]")
+    console.print(f"Reviewer judgments: {run.pack.judgments_path}")
+    console.print(f"Errors: {error_count}")
+    console.print(f"Warnings: {warning_count}")
+    console.print(f"Validation JSON: {run.artifacts.validation_json_path}")
+    console.print(f"Validation summary: {run.artifacts.validation_markdown_path}")
     if not run.passed:
         raise typer.Exit(code=1)
 
@@ -649,6 +794,64 @@ def eval_rag_retrieval_command(
     if run.artifacts.rerank_delta_csv_path is not None:
         console.print(f"Rerank delta CSV: {run.artifacts.rerank_delta_csv_path}")
     console.print(f"Summary: {run.artifacts.summary_markdown_path}")
+
+
+@app.command("adjudicate-rag-benchmark")
+def adjudicate_rag_benchmark_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+    corpus_path: CorpusPathOption = None,
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help=(
+            "Allow adjudicated_judgments.csv to be written even when reviewer conflicts remain. "
+            "Use sparingly and treat the result as an explicit override."
+        ),
+    ),
+) -> None:
+    """Compare reviewer judgments, write conflict reports, and allow an explicit override when forced."""
+
+    try:
+        run = adjudicate_rag_benchmark_pipeline(
+            benchmark_dir=benchmark_dir,
+            settings=get_settings(),
+            corpus_path=corpus_path,
+            force=force,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG benchmark adjudication complete[/bold blue]")
+    console.print(f"Reviewers: {', '.join(run.reviewer_names)}")
+    console.print(f"Conflicts: {run.conflict_count}")
+    console.print(f"Agreement summary JSON: {run.artifacts.agreement_summary_json_path}")
+    console.print(f"Agreement summary: {run.artifacts.agreement_summary_markdown_path}")
+    console.print(f"Conflict report: {run.artifacts.conflicts_csv_path}")
+    if run.artifacts.adjudicated_judgments_path is not None:
+        console.print(f"Adjudicated judgments: {run.artifacts.adjudicated_judgments_path}")
+
+
+@app.command("summarize-rag-benchmark-authoring")
+def summarize_rag_benchmark_authoring_command(
+    benchmark_dir: RequiredBenchmarkDirOption,
+) -> None:
+    """Summarize benchmark authoring coverage, gaps, and current judgment readiness."""
+
+    try:
+        run = summarize_rag_benchmark_authoring_pipeline(
+            benchmark_dir=benchmark_dir,
+            settings=get_settings(),
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    console.print("[bold blue]RAG benchmark authoring summary complete[/bold blue]")
+    console.print(f"Pack status: {run.summary['pack_status']}")
+    console.print(f"Judgments source: {run.summary['judgments_source']}")
+    console.print(f"Unjudged queries: {len(run.summary['unjudged_queries'])}")
+    console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
+    console.print(f"Summary: {run.artifacts.summary_markdown_path}")
+    console.print(f"Coverage rows CSV: {run.artifacts.coverage_rows_csv_path}")
 
 
 @app.command("rag-search")

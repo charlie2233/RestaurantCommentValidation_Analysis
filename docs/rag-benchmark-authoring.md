@@ -20,6 +20,22 @@ Author benchmark packs with these CSV files:
 
 Templates live under `data/rag_benchmarks/templates/`.
 
+For a real local pack, start with:
+
+```bash
+qsr-audit init-rag-benchmark --name my-pack --author alice
+```
+
+That creates:
+
+- `data/rag_benchmarks/my-pack/queries.csv`
+- `data/rag_benchmarks/my-pack/judgments.csv`
+- `data/rag_benchmarks/my-pack/filters.csv`
+- `data/rag_benchmarks/my-pack/query_groups.csv`
+- `data/rag_benchmarks/my-pack/metadata.json`
+- `data/rag_benchmarks/my-pack/README.md`
+- `data/rag_benchmarks/my-pack/checklist.md`
+
 ## Query authoring
 
 Each query row should capture one realistic analyst lookup task.
@@ -88,19 +104,95 @@ columns.
 These groups support grouped evaluation summaries. They do not change corpus
 policy.
 
-## Validation and evaluation workflow
+## Reviewer workflow
+
+Use reviewer-specific files instead of clobbering the pack-level `judgments.csv`.
+
+Recommended layout:
+
+- `data/rag_benchmarks/my-pack/reviewers/alice/judgments.csv`
+- `data/rag_benchmarks/my-pack/reviewers/bob/judgments.csv`
+
+Bootstrap suggestions first:
 
 ```bash
 qsr-audit build-rag-corpus
-qsr-audit validate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25 --top-k 10
+```
+
+This writes reviewer-facing working files under `data/rag_benchmarks/my-pack/working/`:
+
+- `query_specs.json`
+- `candidate_results.parquet`
+- `candidate_results.csv`
+- `judgment_workspace.csv`
+- `bootstrap_manifest.json`
+
+These are suggestions only. They are not ground truth and they never overwrite
+`judgments.csv`.
+
+Reviewer submission workflow:
+
+1. Copy or curate candidate rows into `reviewers/<name>/judgments.csv`.
+2. Leave unknowns blank rather than guessing.
+3. Keep `chunk_id` vs `doc_id` semantics explicit.
+4. Provide rationale for every judgment row.
+
+Validate reviewer files before adjudication:
+
+```bash
+qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
+```
+
+## Adjudication
+
+Adjudication compares reviewer files and writes reports under
+`artifacts/rag/benchmarks/adjudication/<run_id>/`.
+
+```bash
+qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
+```
+
+Outputs:
+
+- `conflicts.csv`
+- `agreement_summary.json`
+- `agreement_summary.md`
+- `data/rag_benchmarks/my-pack/adjudicated_judgments.csv` when conflicts are resolved
+
+Rules:
+
+- reviewer files are never overwritten
+- at least two valid reviewer submissions are required before the pack can be marked truly `adjudicated`
+- unresolved conflicts keep the pack out of `adjudicated` status unless `--force` is used
+- `--force` can emit a provisional adjudication artifact for workflow purposes, but the pack stays provisional unless minimum reviewer coverage and agreement requirements are both met
+- `chunk_id` judgments remain exact
+- `doc_id` judgments are satisfied by any chunk from the judged document
+- doc-level and chunk-level judgments are not flattened into each other during adjudication
+- semantically equivalent reviewer inputs such as `Relevant` vs `relevant` and `01` vs `1` are canonicalized before conflict detection
+
+## Validation and evaluation workflow
+
+```bash
+qsr-audit init-rag-benchmark --name my-pack --author alice
+qsr-audit build-rag-corpus
+qsr-audit bootstrap-rag-judgments --benchmark-dir data/rag_benchmarks/my-pack
+qsr-audit validate-rag-reviewer-file --benchmark-dir data/rag_benchmarks/my-pack --reviewer alice
+qsr-audit adjudicate-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack
 qsr-audit eval-rag-retrieval --benchmark-dir data/rag_benchmarks/my-pack --retriever bm25
 qsr-audit inspect-rag-benchmark --benchmark-dir data/rag_benchmarks/my-pack --query-id blocked-kpi
+qsr-audit summarize-rag-benchmark-authoring --benchmark-dir data/rag_benchmarks/my-pack
 ```
 
 Validation failures that come from malformed field values, contradictory rows, or
 dangling references are reported in structured validation artifacts under
 `artifacts/rag/benchmarks/validation/`. Missing required files or badly shaped CSVs
 still fail immediately as hard load errors.
+
+Evaluation prefers `adjudicated_judgments.csv` only when the pack metadata marks
+the pack as truly adjudicated. If only draft, single-reviewer, or forced
+provisional judgments exist, the benchmark summary stays provisional and warns
+that the pack is not yet fully adjudicated.
 
 ## When reranking is worth testing
 

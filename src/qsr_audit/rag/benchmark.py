@@ -13,8 +13,10 @@ import pandas as pd
 
 from qsr_audit.config import Settings
 from qsr_audit.rag.benchmark_pack import (
+    ADJUDICATED_JUDGMENTS_FILENAME,
     DEFAULT_BENCHMARK_VALIDATION_SUBDIR,
     RagBenchmarkValidationRun,
+    resolve_preferred_judgments_path,
     validate_rag_benchmark_pack,
 )
 from qsr_audit.rag.corpus import load_rag_corpus, resolve_rag_corpus_path
@@ -459,10 +461,12 @@ def inspect_rag_benchmark_query(
         )
 
     corpus = load_rag_corpus(resolved_corpus_path)
+    judgments_path = resolve_preferred_judgments_path(benchmark_dir)
     validation = validate_rag_benchmark_pack(
         benchmark_dir=benchmark_dir,
         corpus=corpus,
         settings=resolved_settings,
+        judgments_path=judgments_path,
     )
     if not validation.passed:
         raise ValueError(
@@ -576,14 +580,29 @@ def render_rag_benchmark_summary(summary: dict[str, Any]) -> str:
         f"- Judged queries: `{summary['judged_query_count']}`",
         f"- Top-k: `{summary['top_k']}`",
         "",
-        "## Retriever Results",
+        "## Benchmark Status",
         "",
-        (
-            "| Run | Status | Recall@k | MRR | nDCG@k | Citation precision | "
-            "Metadata filter correctness | Latency ms | Index size bytes |"
-        ),
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        f"- Pack status: `{summary['benchmark_pack_status']}`",
+        f"- Judgments source: `{summary['judgments_source']}`",
     ]
+    if summary["benchmark_warnings"]:
+        for warning in summary["benchmark_warnings"]:
+            lines.append(f"- Warning: {warning}")
+    else:
+        lines.append("- Warnings: none.")
+
+    lines.extend(
+        [
+            "",
+            "## Retriever Results",
+            "",
+            (
+                "| Run | Status | Recall@k | MRR | nDCG@k | Citation precision | "
+                "Metadata filter correctness | Latency ms | Index size bytes |"
+            ),
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     for row in summary["retriever_results"]:
         lines.append(
             "| "
@@ -760,11 +779,13 @@ def _load_query_specs(
     if benchmark_dir is not None and benchmark_path is not None:
         raise ValueError("Use either `benchmark_dir` or `benchmark_path`, not both.")
     if benchmark_dir is not None:
+        judgments_path = resolve_preferred_judgments_path(benchmark_dir)
         validation = validate_rag_benchmark_pack(
             benchmark_dir=benchmark_dir,
             corpus=corpus,
             settings=settings,
             output_root=output_root / DEFAULT_BENCHMARK_VALIDATION_SUBDIR.name,
+            judgments_path=judgments_path,
         )
         if not validation.passed:
             raise ValueError(
@@ -1357,6 +1378,29 @@ def _build_summary(
             and row["status"] == "ok"
         }
     )
+    benchmark_pack_status = (
+        validation.pack.metadata.get("pack_status", "draft")
+        if validation is not None
+        else "fixture"
+    )
+    judgments_source = validation.pack.judgments_path.name if validation is not None else "fixture"
+    benchmark_warnings: list[str] = []
+    if validation is not None:
+        if judgments_source != ADJUDICATED_JUDGMENTS_FILENAME:
+            benchmark_warnings.append(
+                "This benchmark run is using draft or single-reviewer judgments instead of an adjudicated pack."
+            )
+            provisional_adjudicated_path = (
+                validation.pack.benchmark_dir / ADJUDICATED_JUDGMENTS_FILENAME
+            )
+            if provisional_adjudicated_path.exists():
+                benchmark_warnings.append(
+                    "A provisional adjudicated_judgments.csv exists, but it is being ignored because the pack is not truly adjudicated."
+                )
+        if benchmark_pack_status != "adjudicated":
+            benchmark_warnings.append(
+                f"Benchmark pack status is `{benchmark_pack_status}`; treat retrieval metrics as provisional."
+            )
     return {
         "built_at_utc": datetime.now(UTC).isoformat(),
         "benchmark_path": str(benchmark_path) if benchmark_path is not None else None,
@@ -1381,6 +1425,9 @@ def _build_summary(
         "ambiguous_query_count": len(ambiguous_query_ids),
         "ambiguous_query_success_count": ambiguous_query_success_count,
         "rerank_results": rerank_delta.to_dict(orient="records"),
+        "benchmark_pack_status": benchmark_pack_status,
+        "judgments_source": judgments_source,
+        "benchmark_warnings": benchmark_warnings,
     }
 
 
