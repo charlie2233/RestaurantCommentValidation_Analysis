@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "check_repo_hygiene.py"
 
@@ -29,7 +28,9 @@ def test_check_repo_hygiene_rejects_workstation_specific_paths(
     module = _load_hygiene_module()
     tracked_file = tmp_path / "docs" / "starter.md"
     tracked_file.parent.mkdir(parents=True, exist_ok=True)
-    tracked_file.write_text("See /Users/alice/RestaurantAnalysis/docs/runbook.md\n", encoding="utf-8")
+    tracked_file.write_text(
+        "See /Users/alice/RestaurantAnalysis/docs/runbook.md\n", encoding="utf-8"
+    )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(module, "_tracked_files", lambda: ["docs/starter.md"])
@@ -67,7 +68,9 @@ def test_check_repo_hygiene_ignores_legitimate_urls(
     module = _load_hygiene_module()
     tracked_file = tmp_path / "docs" / "links.md"
     tracked_file.parent.mkdir(parents=True, exist_ok=True)
-    tracked_file.write_text("Reference https://example.com/Users/guide for context.\n", encoding="utf-8")
+    tracked_file.write_text(
+        "Reference https://example.com/Users/guide for context.\n", encoding="utf-8"
+    )
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(module, "_tracked_files", lambda: ["docs/links.md"])
