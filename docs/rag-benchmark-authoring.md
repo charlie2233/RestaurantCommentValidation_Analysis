@@ -20,6 +20,10 @@ Author benchmark packs with these CSV files:
 
 Templates live under `data/rag_benchmarks/templates/`.
 
+The repo also includes a committed starter pack under
+`data/rag_benchmarks/2026q2_pack/`. Its final `queries.csv` and `judgments.csv`
+are intentionally blank; use its `working/` files as draft review inputs only.
+
 For a real local pack, start with:
 
 ```bash

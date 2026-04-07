@@ -20,6 +20,22 @@ qsr-audit preflight-release
 qsr-audit report --output reports/
 ```
 
+## First Real Analyst Cycle
+
+The main bottleneck is now human evidence collection, not missing framework
+code.
+
+Start here:
+
+1. Work the top evidence queue in [reference-evidence-backlog.md](/Users/hanfei/RestaurantAnalysis/docs/reference-evidence-backlog.md).
+2. Review the committed starter benchmark pack in [data/rag_benchmarks/2026q2_pack/README.md](/Users/hanfei/RestaurantAnalysis/data/rag_benchmarks/2026q2_pack/README.md).
+3. Keep `queries.csv` and `judgments.csv` blank until humans approve real
+   benchmark tasks and labels.
+4. Use two reviewers from the start for benchmark judgments.
+5. Snapshot Gold monthly only after the checklist in
+   [monthly-gold-snapshot-checklist.md](/Users/hanfei/RestaurantAnalysis/docs/monthly-gold-snapshot-checklist.md)
+   is satisfied.
+
 ## What each stage is for
 
 ### 1. Ingest
@@ -99,6 +115,9 @@ Rules:
 - Never treat forecast outputs as audited facts.
 - Forecast artifacts belong under `artifacts/forecasting/`, not `reports/` or
   `strategy/`.
+- Follow the operating checklist in
+  [monthly-gold-snapshot-checklist.md](/Users/hanfei/RestaurantAnalysis/docs/monthly-gold-snapshot-checklist.md)
+  before treating a month as forecast-ready history.
 
 ## Retrieval experiment workflow
 
@@ -137,6 +156,39 @@ Rules:
 - Adjudicate reviewer conflicts before treating benchmark metrics as stable evidence.
 - Use reranking only after the benchmark pack is valid and the first-pass retriever quality is measurable.
 - Use failure triage after each real run to decide whether the next benchmark fix belongs in retrieval, reranking, filters, provenance coverage, or the benchmark labels themselves.
+- The committed starter pack under [data/rag_benchmarks/2026q2_pack](/Users/hanfei/RestaurantAnalysis/data/rag_benchmarks/2026q2_pack)
+  includes draft working suggestions only. It does not include approved final
+  queries or judgments.
+
+## What Humans Need To Do Next
+
+- fill manual reference rows for the priority KPI gaps instead of waiting for
+  more framework work
+- review `working/suggested_queries.csv` and copy only approved tasks into
+  `queries.csv`
+- create reviewer-specific judgment files and resolve disagreements before
+  treating retrieval metrics as evidence
+- decide whether a monthly Gold state is clean enough to snapshot for
+  forecasting research
+
+## What Codex Can Help With
+
+- run the ingest, validate, reconcile, gate, report, and preflight commands
+- summarize which brands or metrics remain blocked by missing evidence
+- prepare or refresh benchmark working files, reviewer validation runs, and
+  adjudication reports
+- draft CSV rows, checklists, and backlog updates without claiming those drafts
+  are final evidence
+
+## What Still Cannot Be Automated Safely
+
+- inventing missing reference values or source excerpts
+- deciding that a private-brand metric is authoritative without human source
+  review
+- resolving ambiguous benchmark query intent or final relevance labels without
+  reviewers
+- promoting `advisory` or `blocked` KPI rows into external-facing facts
+- presenting forecast or retrieval experiment outputs as audited truth
 
 ## How to read the outputs
 

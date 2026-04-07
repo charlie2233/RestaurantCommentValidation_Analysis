@@ -39,6 +39,8 @@ data/gold/*
 data/rag_benchmarks/*
 !data/rag_benchmarks/templates/
 !data/rag_benchmarks/templates/**
+!data/rag_benchmarks/2026q2_pack/
+!data/rag_benchmarks/2026q2_pack/**
 
 # MLflow
 mlruns/

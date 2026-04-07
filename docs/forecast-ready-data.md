@@ -38,6 +38,9 @@ Default behavior:
 - exclude `advisory` unless `--include-advisory` is passed
 - never include `blocked` rows
 
+For the operating sequence and monthly archive discipline, follow
+`docs/monthly-gold-snapshot-checklist.md` in addition to this schema contract.
+
 ## Forecast panel contract
 
 `qsr-audit build-forecast-panel --metric <metric_name>` produces a panel with at
