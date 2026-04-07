@@ -14,6 +14,13 @@ from qsr_audit.forecasting import build_forecast_panel as build_forecast_panel_p
 from qsr_audit.forecasting import forecast_baselines as forecast_baselines_pipeline
 from qsr_audit.forecasting import snapshot_gold_history as snapshot_gold_history_pipeline
 from qsr_audit.gold import gate_gold_publish as gate_gold_publish_pipeline
+from qsr_audit.governance import (
+    DataClassification,
+    begin_command_audit,
+    latest_manifest_path,
+    write_artifact_manifest,
+    write_command_audit_log,
+)
 from qsr_audit.ingest import ingest_workbook as ingest_workbook_pipeline
 from qsr_audit.rag import adjudicate_rag_benchmark as adjudicate_rag_benchmark_pipeline
 from qsr_audit.rag import available_reranker_names, resolve_rag_corpus_path
@@ -33,6 +40,7 @@ from qsr_audit.rag import validate_rag_benchmark_pack as validate_rag_benchmark_
 from qsr_audit.rag import validate_rag_reviewer_file as validate_rag_reviewer_file_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
+from qsr_audit.release import preflight_release as preflight_release_pipeline
 from qsr_audit.reporting import write_reports as write_reports_pipeline
 from qsr_audit.strategy import generate_strategy_outputs as generate_strategy_outputs_pipeline
 from qsr_audit.validate import run_syntheticness as run_syntheticness_pipeline
@@ -48,6 +56,63 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
+
+
+def _record_command_success(
+    *,
+    settings,
+    session,
+    input_paths: list[Path | str],
+    output_paths: list[Path | str],
+    row_counts: dict[str, int] | None,
+    data_classification: DataClassification,
+    intended_audience: str,
+    publish_status_scope: str,
+    warnings_count: int = 0,
+    errors_count: int = 0,
+    upstream_artifact_references: list[Path | str] | None = None,
+) -> tuple[Path, Path]:
+    manifest_path = write_artifact_manifest(
+        settings=settings,
+        command_name=session.command_name,
+        input_paths=input_paths,
+        output_paths=output_paths,
+        row_counts=row_counts,
+        data_classification=data_classification,
+        intended_audience=intended_audience,
+        publish_status_scope=publish_status_scope,
+        upstream_artifact_references=upstream_artifact_references or [],
+        warnings_count=warnings_count,
+        errors_count=errors_count,
+        run_timestamp=session.start_timestamp,
+        run_id=session.run_id,
+    )
+    audit_log_path = write_command_audit_log(
+        settings=settings,
+        session=session,
+        status="success",
+        input_paths=input_paths,
+        output_paths=output_paths,
+        warnings_count=warnings_count,
+        errors_count=errors_count,
+        manifest_path=manifest_path,
+    )
+    return manifest_path, audit_log_path
+
+
+def _record_command_failure(
+    *, settings, session, input_paths: list[Path | str], exc: Exception
+) -> Path:
+    return write_command_audit_log(
+        settings=settings,
+        session=session,
+        status="failure",
+        input_paths=input_paths,
+        warnings_count=0,
+        errors_count=1,
+        failure_type=type(exc).__name__,
+    )
+
 
 InputWorkbookOption = Annotated[
     Path,
@@ -365,14 +430,41 @@ def validate_workbook_command(
 ) -> None:
     """Validate normalized workbook tables from a raw workbook or Silver path."""
 
-    run = validate_workbook_pipeline(
-        input_path=input_path,
-        settings=get_settings(),
-        tolerance_auv=tolerance_auv,
-    )
+    settings = get_settings()
+    session = begin_command_audit("validate-workbook")
+    try:
+        run = validate_workbook_pipeline(
+            input_path=input_path,
+            settings=settings,
+            tolerance_auv=tolerance_auv,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=[input_path], exc=exc
+        )
+        raise
     counts = run.counts
     status_label = "passed" if run.passed else "failed"
     status_color = "green" if run.passed else "red"
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=[input_path],
+        output_paths=[
+            run.artifacts.summary_markdown,
+            run.artifacts.results_json,
+            run.artifacts.flags_parquet,
+        ],
+        row_counts={
+            "validation_findings": len(run.findings),
+            "validation_flags": len(run.findings),
+        },
+        data_classification=DataClassification.CONFIDENTIAL,
+        intended_audience="analyst",
+        publish_status_scope="working_layer_findings",
+        warnings_count=counts["warning"],
+        errors_count=counts["error"],
+    )
 
     console.print(
         f"[bold {status_color}]Validation {status_label}[/bold {status_color}] - {input_path}"
@@ -384,6 +476,8 @@ def validate_workbook_command(
         console.print(f"Summary: {run.artifacts.summary_markdown}")
         console.print(f"Results JSON: {run.artifacts.results_json}")
         console.print(f"Validation flags: {run.artifacts.flags_parquet}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
 
     if not run.passed:
         raise typer.Exit(code=1)
@@ -400,12 +494,33 @@ def run_syntheticness_command(
 ) -> None:
     """Run syntheticness diagnostics on normalized core brand metrics."""
 
-    run = run_syntheticness_pipeline(
-        input_path=input_path,
-        settings=get_settings(),
-        include_isolation_forest=include_isolation_forest,
-    )
+    settings = get_settings()
+    session = begin_command_audit("run-syntheticness")
+    try:
+        run = run_syntheticness_pipeline(
+            input_path=input_path,
+            settings=settings,
+            include_isolation_forest=include_isolation_forest,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=[input_path], exc=exc
+        )
+        raise
     counts = run.counts
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=[input_path],
+        output_paths=[run.artifacts.report_markdown, run.artifacts.signals_parquet],
+        row_counts={"syntheticness_signals": len(run.report.signals)},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="experimental_signals",
+        warnings_count=counts["strong"] + counts["moderate"] + counts["weak"],
+        errors_count=0,
+        upstream_artifact_references=[latest_manifest_path(settings, "validate-workbook")],
+    )
 
     console.print(f"[bold magenta]Syntheticness analysis complete[/bold magenta] - {input_path}")
     console.print(f"Strong signals: {counts['strong']}")
@@ -414,6 +529,8 @@ def run_syntheticness_command(
     console.print(f"Unknown / skipped: {counts['unknown']}")
     console.print(f"Report: {run.artifacts.report_markdown}")
     console.print(f"Signals parquet: {run.artifacts.signals_parquet}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
 
 
 @app.command("reconcile")
@@ -423,10 +540,44 @@ def reconcile_command(
 ) -> None:
     """Reconcile normalized core metrics and emit reference coverage artifacts."""
 
-    run = reconcile_core_metrics_pipeline(
-        core_path=core_path,
-        reference_dir=reference_dir,
-        settings=get_settings(),
+    settings = get_settings()
+    session = begin_command_audit("reconcile")
+    try:
+        run = reconcile_core_metrics_pipeline(
+            core_path=core_path,
+            reference_dir=reference_dir,
+            settings=settings,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings,
+            session=session,
+            input_paths=[core_path, reference_dir],
+            exc=exc,
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=[core_path, reference_dir],
+        output_paths=[
+            run.artifacts.reconciled_core_metrics_path,
+            run.artifacts.provenance_registry_path,
+            run.artifacts.reconciliation_summary_path,
+            run.artifacts.reference_coverage_parquet_path,
+            run.artifacts.reference_coverage_markdown_path,
+        ],
+        row_counts={
+            "reconciled_core_metrics": len(run.reconciled_core_metrics),
+            "provenance_registry": len(run.provenance_registry),
+            "reference_coverage": len(run.reference_coverage),
+        },
+        data_classification=DataClassification.CONFIDENTIAL,
+        intended_audience="analyst",
+        publish_status_scope="all_gold_rows",
+        warnings_count=len(run.warnings),
+        errors_count=0,
+        upstream_artifact_references=[latest_manifest_path(settings, "validate-workbook")],
     )
     console.print(f"[bold cyan]Reconciliation complete[/bold cyan] - {core_path}")
     console.print(f"Warnings: {len(run.warnings)}")
@@ -435,6 +586,8 @@ def reconcile_command(
     console.print(f"Summary: {run.artifacts.reconciliation_summary_path}")
     console.print(f"Reference coverage parquet: {run.artifacts.reference_coverage_parquet_path}")
     console.print(f"Reference coverage markdown: {run.artifacts.reference_coverage_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
 
 
 @app.command("audit-reference")
@@ -444,22 +597,91 @@ def audit_reference_command(
 ) -> None:
     """Audit manual reference coverage and emit Gold/report coverage artifacts."""
 
-    run = audit_reference_coverage_pipeline(
-        core_path=core_path,
-        reference_dir=reference_dir,
-        settings=get_settings(),
+    settings = get_settings()
+    session = begin_command_audit("audit-reference")
+    try:
+        run = audit_reference_coverage_pipeline(
+            core_path=core_path,
+            reference_dir=reference_dir,
+            settings=settings,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings,
+            session=session,
+            input_paths=[core_path, reference_dir],
+            exc=exc,
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=[core_path, reference_dir],
+        output_paths=[run.artifacts.coverage_parquet_path, run.artifacts.coverage_markdown_path],
+        row_counts={"reference_coverage": len(run.coverage_frame)},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="reference_coverage",
+        warnings_count=len(run.warnings),
+        errors_count=0,
+        upstream_artifact_references=[latest_manifest_path(settings, "validate-workbook")],
     )
     console.print(f"[bold cyan]Reference coverage audit complete[/bold cyan] - {core_path}")
     console.print(f"Warnings: {len(run.warnings)}")
     console.print(f"Coverage parquet: {run.artifacts.coverage_parquet_path}")
     console.print(f"Coverage markdown: {run.artifacts.coverage_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
 
 
 @app.command("gate-gold")
 def gate_gold_command() -> None:
     """Evaluate Gold publishing gates and emit KPI export decisions plus an audit scorecard."""
 
-    run = gate_gold_publish_pipeline(settings=get_settings())
+    settings = get_settings()
+    session = begin_command_audit("gate-gold")
+    gold_inputs = [
+        settings.data_gold / "reconciled_core_metrics.parquet",
+        settings.data_gold / "provenance_registry.parquet",
+        settings.data_gold / "validation_flags.parquet",
+        settings.data_gold / "reference_coverage.parquet",
+        settings.data_gold / "syntheticness_signals.parquet",
+    ]
+    try:
+        run = gate_gold_publish_pipeline(settings=settings)
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=gold_inputs, exc=exc
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=gold_inputs,
+        output_paths=[
+            run.artifacts.decisions_path,
+            run.artifacts.publishable_path,
+            run.artifacts.blocked_path,
+            run.artifacts.scorecard_markdown_path,
+            run.artifacts.summary_json_path,
+        ],
+        row_counts={
+            "decision_rows": len(run.decisions),
+            "publishable_rows": int(run.summary["publishable_count"]),
+            "advisory_rows": int(run.summary["advisory_count"]),
+            "blocked_rows": int(run.summary["blocked_count"]),
+        },
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="release_manager",
+        publish_status_scope="publishable_advisory_blocked",
+        warnings_count=int(run.summary["advisory_count"]),
+        errors_count=int(run.summary["blocked_count"]),
+        upstream_artifact_references=[
+            latest_manifest_path(settings, "validate-workbook"),
+            latest_manifest_path(settings, "run-syntheticness"),
+            latest_manifest_path(settings, "reconcile"),
+        ],
+    )
     console.print("[bold green]Gold publishing gates complete[/bold green]")
     console.print(f"Policy: {run.policy_id} {run.policy_version}")
     console.print(f"Decision rows: {len(run.decisions.index)}")
@@ -471,6 +693,8 @@ def gate_gold_command() -> None:
     console.print(f"Blocked parquet: {run.artifacts.blocked_path}")
     console.print(f"Scorecard: {run.artifacts.scorecard_markdown_path}")
     console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
 
 
 @app.command("snapshot-gold")
@@ -1090,10 +1314,54 @@ def report(
     """Generate Markdown/HTML/JSON audit reports and Gold-derived strategy outputs."""
 
     settings = get_settings()
-    artifacts = write_reports_pipeline(output_root=output, settings=settings)
-    strategy_run = generate_strategy_outputs_pipeline(
+    session = begin_command_audit("report")
+    report_inputs = [
+        settings.data_gold / "gold_publish_decisions.parquet",
+        settings.data_gold / "reconciled_core_metrics.parquet",
+        settings.data_gold / "provenance_registry.parquet",
+        settings.data_gold / "reference_coverage.parquet",
+        settings.data_gold / "validation_flags.parquet",
+        settings.data_gold / "syntheticness_signals.parquet",
+        settings.reports_dir / "validation" / "validation_results.json",
+    ]
+    try:
+        artifacts = write_reports_pipeline(output_root=output, settings=settings)
+        strategy_run = generate_strategy_outputs_pipeline(
+            settings=settings,
+            report_dir=output / "strategy",
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=report_inputs, exc=exc
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
         settings=settings,
-        report_dir=output / "strategy",
+        session=session,
+        input_paths=report_inputs,
+        output_paths=[
+            artifacts.global_markdown,
+            artifacts.global_html,
+            artifacts.global_json,
+            *artifacts.brand_markdown_paths.values(),
+            *artifacts.brand_html_paths.values(),
+            *artifacts.brand_json_paths.values(),
+            strategy_run.artifacts.recommendations_parquet_path,
+            strategy_run.artifacts.recommendations_json_path,
+            strategy_run.artifacts.playbook_markdown_path,
+        ],
+        row_counts={"brand_reports": len(artifacts.brand_markdown_paths)},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="publishable_plus_internal_context",
+        warnings_count=0,
+        errors_count=0,
+        upstream_artifact_references=[
+            latest_manifest_path(settings, "gate-gold"),
+            latest_manifest_path(settings, "reconcile"),
+            latest_manifest_path(settings, "validate-workbook"),
+            latest_manifest_path(settings, "run-syntheticness"),
+        ],
     )
     console.print(f"[bold yellow]Analyst reports generated[/bold yellow] - {output}")
     console.print(f"Global markdown: {artifacts.global_markdown}")
@@ -1107,6 +1375,61 @@ def report(
         f"Strategy recommendations JSON: {strategy_run.artifacts.recommendations_json_path}"
     )
     console.print(f"Strategy playbook: {strategy_run.artifacts.playbook_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+
+
+@app.command("preflight-release")
+def preflight_release_command() -> None:
+    """Check whether Gold outputs and lineage artifacts are ready for external-facing handoff."""
+
+    settings = get_settings()
+    session = begin_command_audit("preflight-release")
+    input_paths = [
+        settings.data_gold / "gold_publish_decisions.parquet",
+        settings.data_gold / "publishable_kpis.parquet",
+        settings.data_gold / "blocked_kpis.parquet",
+        latest_manifest_path(settings, "validate-workbook"),
+        latest_manifest_path(settings, "run-syntheticness"),
+        latest_manifest_path(settings, "reconcile"),
+        latest_manifest_path(settings, "gate-gold"),
+    ]
+    try:
+        run = preflight_release_pipeline(settings=settings)
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=input_paths, exc=exc
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=input_paths,
+        output_paths=[run.artifacts.summary_json_path, run.artifacts.summary_markdown_path],
+        row_counts={"checks": len(run.checks)},
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="release_manager",
+        publish_status_scope="release_readiness",
+        warnings_count=int(run.summary["warning_check_count"]),
+        errors_count=int(run.summary["failed_check_count"]),
+        upstream_artifact_references=[
+            latest_manifest_path(settings, "validate-workbook"),
+            latest_manifest_path(settings, "run-syntheticness"),
+            latest_manifest_path(settings, "reconcile"),
+            latest_manifest_path(settings, "gate-gold"),
+        ],
+    )
+    console.print(
+        f"[bold {'green' if run.passed else 'red'}]Release preflight {'passed' if run.passed else 'failed'}[/bold {'green' if run.passed else 'red'}]"
+    )
+    console.print(f"Failed checks: {run.summary['failed_check_count']}")
+    console.print(f"Warning checks: {run.summary['warning_check_count']}")
+    console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
+    console.print(f"Summary Markdown: {run.artifacts.summary_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+    if not run.passed:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

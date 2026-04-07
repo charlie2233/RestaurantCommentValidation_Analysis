@@ -38,6 +38,7 @@ from typer.testing import CliRunner
                 "eval-rag-retrieval",
                 "inspect-rag-benchmark",
                 "rag-search",
+                "preflight-release",
                 "report",
             ],
         ),
@@ -68,6 +69,10 @@ from typer.testing import CliRunner
         (
             ["report", "--help"],
             ["Markdown/HTML/JSON audit reports", "Gold-derived strategy outputs"],
+        ),
+        (
+            ["preflight-release", "--help"],
+            ["Gold outputs", "lineage artifacts", "external-facing handoff"],
         ),
         (
             ["gate-gold", "--help"],

@@ -16,6 +16,7 @@ qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
 qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/
 qsr-audit gate-gold
+qsr-audit preflight-release
 qsr-audit report --output reports/
 ```
 
@@ -61,6 +62,21 @@ qsr-audit report --output reports/
 
 - Generates executive-facing scorecards and brand-level debugging outputs in Markdown, HTML, and JSON.
 - Also produces strategy recommendations as a downstream Gold consumer.
+
+### 7. Release preflight
+
+- Verifies the release package before external handoff.
+- Fails when required Gold decision artifacts or upstream manifests are missing.
+- Fails when publishable and blocked subsets drift away from `gold_publish_decisions.parquet`.
+- Fails when experimental forecasting or retrieval artifacts leak into analyst-facing paths.
+- Writes `artifacts/release/preflight_summary.json` and `artifacts/release/preflight_summary.md`.
+
+## Lineage and control artifacts
+
+- `artifacts/manifests/<command>/latest.json` is the latest lineage manifest for a release-relevant command.
+- `artifacts/audit_logs/<command>/` stores structured start/end status logs for CLI runs.
+- These files are internal controls. They help engineering and release owners trace inputs, outputs, counts, hashes, and upstream dependencies.
+- Secret-like environment values are intentionally redacted from safe debug output. Do not paste raw tokens into notes, runbooks, or issue comments.
 
 ## Forecast-readiness workflow
 
@@ -110,6 +126,7 @@ Rules:
 - Raw workbook files, Bronze, and Silver are excluded by default.
 - Retrieved chunks are not audited facts on their own.
 - Retrieval artifacts belong under `artifacts/rag/`, not `reports/` or `strategy/`.
+- Experimental forecasting and retrieval artifacts are not release-safe facts, even when they are useful internally.
 - Dense retrieval is opt-in and may be skipped when weights are unavailable or CI is running.
 - Initialize benchmark packs under `data/rag_benchmarks/` and keep analyst source files there.
 - `seed-rag-queries` writes deterministic metadata-driven suggestions to `working/`; review them manually before copying anything into `queries.csv`.

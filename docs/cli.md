@@ -1,5 +1,11 @@
 # CLI Reference
 
+## Control artifacts
+
+- Release-relevant commands emit machine-readable manifests under `artifacts/manifests/<command>/`.
+- The same commands emit structured audit logs under `artifacts/audit_logs/<command>/`.
+- These control artifacts are for lineage, release gating, and handoff debugging. They are not analyst-facing reports.
+
 ## Core commands
 
 ### `qsr-audit ingest-workbook --input <workbook.xlsx>`
@@ -55,6 +61,18 @@
   - `data/gold/blocked_kpis.parquet`
   - `reports/audit/gold_publish_scorecard.md`
   - `reports/audit/gold_publish_scorecard.json`
+
+### `qsr-audit preflight-release`
+
+- Purpose: verify that Gold publish artifacts, upstream manifests, and release runbooks are ready for external-facing handoff.
+- Gate behavior:
+  - fails when required Gold decision artifacts are missing
+  - fails when required upstream manifests are missing
+  - fails when `publishable_kpis.parquet` or `blocked_kpis.parquet` drift from `gold_publish_decisions.parquet`
+  - fails when experimental forecasting or RAG artifacts leak into analyst-facing paths
+- Primary outputs:
+  - `artifacts/release/preflight_summary.json`
+  - `artifacts/release/preflight_summary.md`
 
 ### `qsr-audit snapshot-gold --as-of-date YYYY-MM-DD`
 
@@ -274,6 +292,12 @@
   - `reports/strategy/recommendations.json`
   - `strategy/recommendations.parquet`
   - `strategy/recommendations.json`
+
+## Settings and redaction
+
+- `.env.example` documents the supported path settings without shipping real values.
+- `qsr_audit.config.Settings.safe_debug_summary()` is safe to print in CI and local diagnostics because it redacts secret-like environment values.
+- `artifacts/` must stay separate from `reports/` and `strategy/`. The settings layer rejects unsafe overlaps early.
 
 ## Local end-to-end example
 
