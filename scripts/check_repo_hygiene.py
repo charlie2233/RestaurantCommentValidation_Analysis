@@ -19,8 +19,11 @@ ALLOWED_TRACKED = {
     "data/bronze/.gitkeep",
     "data/silver/.gitkeep",
     "data/gold/.gitkeep",
+    "data/gold/primary_source_gold_candidates.parquet",
     "data/reference/.gitkeep",
     "reports/.gitkeep",
+    "reports/reconciliation/primary_source_coverage.md",
+    "reports/reconciliation/primary_source_deltas.csv",
     "strategy/.gitkeep",
 }
 ALLOWED_PREFIXES = ("data/reference/",)

@@ -125,7 +125,12 @@ def grade_numeric_credibility(*, relative_error: float | None) -> str:
     return "F"
 
 
-def select_best_reference_row(reference_rows: pd.DataFrame, *, field_name: str) -> pd.Series | None:
+def select_best_reference_row(
+    reference_rows: pd.DataFrame,
+    *,
+    field_name: str,
+    source_priority: dict[str, int] | None = None,
+) -> pd.Series | None:
     """Pick the most credible reference row for a given field."""
 
     if reference_rows.empty:
@@ -138,11 +143,16 @@ def select_best_reference_row(reference_rows: pd.DataFrame, *, field_name: str) 
         available["confidence_score"], errors="coerce"
     ).fillna(0.0)
     available["sort_date"] = pd.to_datetime(available["as_of_date"], errors="coerce")
-    available = available.sort_values(
-        by=["sort_confidence", "sort_date", "source_name"],
-        ascending=[False, False, True],
-        na_position="last",
-    )
+    sort_by = ["sort_confidence", "sort_date", "source_name"]
+    ascending = [False, False, True]
+    if source_priority is not None:
+        default_priority = max(source_priority.values(), default=0) + 100
+        available["sort_source_priority"] = available["source_type"].map(
+            lambda value: source_priority.get(str(value or ""), default_priority)
+        )
+        sort_by = ["sort_source_priority", *sort_by]
+        ascending = [True, *ascending]
+    available = available.sort_values(by=sort_by, ascending=ascending, na_position="last")
     return available.iloc[0]
 
 

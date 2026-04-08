@@ -63,9 +63,17 @@ REFERENCE_TEMPLATE_COLUMNS: dict[str, tuple[str, ...]] = {
         "notes",
         "filing_type",
         "filing_date",
+        "issuer_name",
+        "issuer_ticker",
         "us_store_count",
+        "us_store_count_scope",
         "systemwide_revenue_usd_billions",
+        "systemwide_revenue_scope",
+        "average_unit_volume_usd_thousands",
+        "average_unit_volume_scope",
         "revenue_segment_notes",
+        "scope_notes",
+        "provenance_grade",
         "currency",
         "geography",
         "source_page",
@@ -115,6 +123,7 @@ REFERENCE_NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
         "confidence_score",
         "us_store_count",
         "systemwide_revenue_usd_billions",
+        "average_unit_volume_usd_thousands",
     ),
     "franchise_disclosure_reference.csv": (
         "confidence_score",
@@ -157,6 +166,22 @@ ALLOWED_METHOD_VALUES = {
     "derived",
     "unknown",
 }
+
+PRIMARY_SOURCE_SCOPE_COLUMNS: dict[str, str] = {
+    "us_store_count": "us_store_count_scope",
+    "systemwide_revenue_usd_billions": "systemwide_revenue_scope",
+    "average_unit_volume_usd_thousands": "average_unit_volume_scope",
+}
+
+ALLOWED_PRIMARY_SOURCE_SCOPE_VALUES = {
+    "direct_comparable",
+    "scope_mismatch",
+    "not_available",
+}
+
+PRIMARY_SOURCE_DIRECT_SCOPE = "direct_comparable"
+PRIMARY_SOURCE_SOURCE_TYPES = ("sec_filings", "investor_relations")
+ALLOWED_PROVENANCE_GRADES = {"A", "B", "C", "D", "F"}
 
 
 @dataclass(frozen=True)
@@ -256,6 +281,39 @@ def validate_reference_file(
                 warnings.append(
                     f"Reference file `{file_name}` row {row_number} for `{brand_name}` has "
                     f"a non-numeric `{column_name}` value `{text_value}`."
+                )
+
+        if file_name == "sec_filings_reference.csv":
+            for metric_column, scope_column in PRIMARY_SOURCE_SCOPE_COLUMNS.items():
+                metric_value = _clean_optional_text(row.get(metric_column))
+                scope_value = _clean_optional_text(row.get(scope_column))
+                if (
+                    scope_value is not None
+                    and scope_value.lower() not in ALLOWED_PRIMARY_SOURCE_SCOPE_VALUES
+                ):
+                    warnings.append(
+                        f"Reference file `{file_name}` row {row_number} for `{brand_name}` uses "
+                        f"`{scope_value}` in `{scope_column}`. Prefer one of: "
+                        + ", ".join(sorted(ALLOWED_PRIMARY_SOURCE_SCOPE_VALUES))
+                        + "."
+                    )
+                if metric_value is not None and scope_value is None:
+                    warnings.append(
+                        f"Reference file `{file_name}` row {row_number} for `{brand_name}` has "
+                        f"`{metric_column}` populated without `{scope_column}`. Mark it as "
+                        "`direct_comparable`, `scope_mismatch`, or `not_available`."
+                    )
+
+            provenance_grade = _clean_optional_text(row.get("provenance_grade"))
+            if (
+                provenance_grade is not None
+                and provenance_grade.upper() not in ALLOWED_PROVENANCE_GRADES
+            ):
+                warnings.append(
+                    f"Reference file `{file_name}` row {row_number} for `{brand_name}` uses "
+                    f"`{provenance_grade}` in `provenance_grade`. Prefer one of: "
+                    + ", ".join(sorted(ALLOWED_PROVENANCE_GRADES))
+                    + "."
                 )
 
         if not any(_clean_optional_text(row.get(column)) is not None for column in metric_columns):
@@ -710,6 +768,7 @@ def _template_metric_columns(file_name: str) -> tuple[str, ...]:
         "sec_filings_reference.csv": (
             "us_store_count",
             "systemwide_revenue_usd_billions",
+            "average_unit_volume_usd_thousands",
         ),
         "franchise_disclosure_reference.csv": (
             "fdd_year",
@@ -746,7 +805,12 @@ def _to_float(value: object) -> float | None:
 
 
 __all__ = [
+    "ALLOWED_PRIMARY_SOURCE_SCOPE_VALUES",
+    "ALLOWED_PROVENANCE_GRADES",
     "ALLOWED_METHOD_VALUES",
+    "PRIMARY_SOURCE_DIRECT_SCOPE",
+    "PRIMARY_SOURCE_SCOPE_COLUMNS",
+    "PRIMARY_SOURCE_SOURCE_TYPES",
     "PROVENANCE_COMPLETENESS_COLUMNS",
     "REFERENCE_FILE_SOURCE_TYPES",
     "REFERENCE_METRIC_COLUMNS",

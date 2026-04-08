@@ -21,6 +21,7 @@ from typer.testing import CliRunner
                 "run-syntheticness",
                 "reconcile",
                 "reconcile-qsr50",
+                "reconcile-primary-source",
                 "audit-reference",
                 "gate-gold",
                 "snapshot-gold",
@@ -66,6 +67,14 @@ from typer.testing import CliRunner
             [
                 "QSR50-only broader reconciliation slice",
                 "analyst-readable deltas",
+                "reference-dir",
+            ],
+        ),
+        (
+            ["reconcile-primary-source", "--help"],
+            [
+                "primary-source-first reconciliation slice",
+                "public-chain reference rows",
                 "reference-dir",
             ],
         ),

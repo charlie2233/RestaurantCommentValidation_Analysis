@@ -23,6 +23,9 @@ from qsr_audit.reconcile.reconciliation import (
     select_best_reference_row,
 )
 from qsr_audit.reconcile.reference_audit import (
+    PRIMARY_SOURCE_DIRECT_SCOPE,
+)
+from qsr_audit.reconcile.reference_audit import (
     REFERENCE_FILE_SOURCE_TYPES as REFERENCE_AUDIT_FILE_SOURCE_TYPES,
 )
 from qsr_audit.reconcile.reference_audit import (
@@ -103,9 +106,17 @@ REFERENCE_TEMPLATE_COLUMNS: dict[str, tuple[str, ...]] = {
         "notes",
         "filing_type",
         "filing_date",
+        "issuer_name",
+        "issuer_ticker",
         "us_store_count",
+        "us_store_count_scope",
         "systemwide_revenue_usd_billions",
+        "systemwide_revenue_scope",
+        "average_unit_volume_usd_thousands",
+        "average_unit_volume_scope",
         "revenue_segment_notes",
+        "scope_notes",
+        "provenance_grade",
         "currency",
         "geography",
         "source_page",
@@ -216,6 +227,7 @@ def reconcile_core_metrics(
     *,
     gold_dir: Path | None = None,
     report_dir: Path | None = None,
+    source_priority: dict[str, int] | None = None,
 ) -> ReconciliationRun:
     """Reconcile normalized core metrics against manual reference files."""
 
@@ -234,6 +246,7 @@ def reconcile_core_metrics(
         core_frame,
         reference_frame,
         core_source_path=resolved_core,
+        source_priority=source_priority,
     )
 
     warnings = tuple(reference_warnings) + tuple(reference_coverage_warnings) + tuple(row_warnings)
@@ -407,6 +420,21 @@ def standardize_reference_frame(
             or REFERENCE_AUDIT_FILE_SOURCE_TYPES.get(source_file_name)
             or "unknown"
         )
+        raw_store_count = _primary_source_metric_value(
+            row,
+            source_file_name=source_file_name,
+            metric_column="us_store_count",
+        )
+        raw_system_sales = _primary_source_metric_value(
+            row,
+            source_file_name=source_file_name,
+            metric_column="systemwide_revenue_usd_billions",
+        )
+        raw_auv = _primary_source_metric_value(
+            row,
+            source_file_name=source_file_name,
+            metric_column="average_unit_volume_usd_thousands",
+        )
 
         standardized_rows.append(
             {
@@ -425,31 +453,65 @@ def standardize_reference_frame(
                 or None,
                 "confidence_score": _to_float(row.get("confidence_score")),
                 "notes": _clean_optional_text(row.get("notes")),
+                "issuer_name": _clean_optional_text(row.get("issuer_name")),
+                "issuer_ticker": _clean_optional_text(row.get("issuer_ticker")),
+                "scope_notes": _clean_optional_text(row.get("scope_notes")),
+                "provenance_grade": _clean_optional_text(row.get("provenance_grade")),
                 "source_row_number": row_number,
                 "reference_rank": _to_int(_first_nonblank(row, "qsr50_rank", "technomic_rank")),
-                "reference_us_store_count_2024": _to_float(
-                    _first_nonblank(
-                        row,
-                        "us_store_count_2024",
-                        "us_store_count_estimate",
-                        "us_store_count",
-                        "franchise_units_us",
-                    )
+                "reference_us_store_count_2024": _normalized_reference_metric_value(
+                    row,
+                    source_file_name=source_file_name,
+                    default_value=_to_float(
+                        _first_nonblank(
+                            row,
+                            "us_store_count_2024",
+                            "us_store_count_estimate",
+                            "us_store_count",
+                            "franchise_units_us",
+                        )
+                    ),
+                    raw_metric_value=raw_store_count,
+                    scope_column="us_store_count_scope",
                 ),
-                "reference_systemwide_revenue_usd_billions_2024": _to_float(
-                    _first_nonblank(
-                        row,
-                        "systemwide_revenue_usd_billions_2024",
-                        "systemwide_revenue_usd_billions_estimate",
-                        "systemwide_revenue_usd_billions",
-                    )
+                "reference_systemwide_revenue_usd_billions_2024": _normalized_reference_metric_value(
+                    row,
+                    source_file_name=source_file_name,
+                    default_value=_to_float(
+                        _first_nonblank(
+                            row,
+                            "systemwide_revenue_usd_billions_2024",
+                            "systemwide_revenue_usd_billions_estimate",
+                            "systemwide_revenue_usd_billions",
+                        )
+                    ),
+                    raw_metric_value=raw_system_sales,
+                    scope_column="systemwide_revenue_scope",
                 ),
-                "reference_average_unit_volume_usd_thousands": _to_float(
-                    _first_nonblank(
-                        row,
-                        "average_unit_volume_usd_thousands",
-                        "average_unit_volume_usd_thousands_estimate",
-                    )
+                "reference_average_unit_volume_usd_thousands": _normalized_reference_metric_value(
+                    row,
+                    source_file_name=source_file_name,
+                    default_value=_to_float(
+                        _first_nonblank(
+                            row,
+                            "average_unit_volume_usd_thousands",
+                            "average_unit_volume_usd_thousands_estimate",
+                        )
+                    ),
+                    raw_metric_value=raw_auv,
+                    scope_column="average_unit_volume_scope",
+                ),
+                "raw_reference_us_store_count": raw_store_count,
+                "raw_reference_systemwide_revenue_usd_billions": raw_system_sales,
+                "raw_reference_average_unit_volume_usd_thousands": raw_auv,
+                "us_store_count_scope": _normalized_primary_source_scope(
+                    row.get("us_store_count_scope")
+                ),
+                "systemwide_revenue_scope": _normalized_primary_source_scope(
+                    row.get("systemwide_revenue_scope")
+                ),
+                "average_unit_volume_scope": _normalized_primary_source_scope(
+                    row.get("average_unit_volume_scope")
                 ),
                 "raw_source_page": _clean_optional_text(row.get("source_page")),
                 "raw_source_excerpt": _clean_optional_text(row.get("source_excerpt")),
@@ -464,6 +526,7 @@ def build_reconciled_core_metrics(
     reference_frame: pd.DataFrame,
     *,
     core_source_path: Path,
+    source_priority: dict[str, int] | None = None,
 ) -> tuple[pd.DataFrame, list[str], ProvenanceRegistry]:
     """Build reconciled Gold-layer core metrics with field-level comparisons."""
 
@@ -531,7 +594,11 @@ def build_reconciled_core_metrics(
 
         field_grades: list[str] = []
         for core_field, reference_field, prefix in RECONCILIATION_FIELD_SPECS:
-            best_reference = select_best_reference_row(matched_refs, field_name=reference_field)
+            best_reference = select_best_reference_row(
+                matched_refs,
+                field_name=reference_field,
+                source_priority=source_priority,
+            )
             if best_reference is None:
                 missing_metrics.append(prefix)
                 comparison = (
@@ -860,6 +927,41 @@ def _count_populated_metric_fields(frame: pd.DataFrame) -> int:
     return int(sum(int(frame[column].notna().any()) for column in metric_columns))
 
 
+def _normalized_reference_metric_value(
+    row: dict[str, Any],
+    *,
+    source_file_name: str,
+    default_value: float | None,
+    raw_metric_value: float | None,
+    scope_column: str,
+) -> float | None:
+    if source_file_name != "sec_filings_reference.csv":
+        return default_value
+    if raw_metric_value is None:
+        return None
+    if _normalized_primary_source_scope(row.get(scope_column)) == PRIMARY_SOURCE_DIRECT_SCOPE:
+        return raw_metric_value
+    return None
+
+
+def _primary_source_metric_value(
+    row: dict[str, Any],
+    *,
+    source_file_name: str,
+    metric_column: str,
+) -> float | None:
+    if source_file_name != "sec_filings_reference.csv":
+        return None
+    return _to_float(row.get(metric_column))
+
+
+def _normalized_primary_source_scope(value: object) -> str | None:
+    text = _clean_optional_text(value)
+    if text is None:
+        return None
+    return text.lower()
+
+
 def _unresolved_reference_rows_warnings(
     frame: pd.DataFrame,
     *,
@@ -897,11 +999,21 @@ def _reference_columns() -> list[str]:
         "method_reported_or_estimated",
         "confidence_score",
         "notes",
+        "issuer_name",
+        "issuer_ticker",
+        "scope_notes",
+        "provenance_grade",
         "source_row_number",
         "reference_rank",
         "reference_us_store_count_2024",
         "reference_systemwide_revenue_usd_billions_2024",
         "reference_average_unit_volume_usd_thousands",
+        "raw_reference_us_store_count",
+        "raw_reference_systemwide_revenue_usd_billions",
+        "raw_reference_average_unit_volume_usd_thousands",
+        "us_store_count_scope",
+        "systemwide_revenue_scope",
+        "average_unit_volume_scope",
         "raw_source_page",
         "raw_source_excerpt",
     ]

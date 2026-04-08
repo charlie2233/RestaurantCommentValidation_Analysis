@@ -96,3 +96,31 @@ def test_check_repo_hygiene_allows_committed_reference_rows(
     assert module.main() == 0
     captured = capsys.readouterr()
     assert "passed" in captured.out
+
+
+def test_check_repo_hygiene_allows_explicit_primary_source_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_hygiene_module()
+    coverage_file = tmp_path / "reports" / "reconciliation" / "primary_source_coverage.md"
+    gold_file = tmp_path / "data" / "gold" / "primary_source_gold_candidates.parquet"
+    coverage_file.parent.mkdir(parents=True, exist_ok=True)
+    gold_file.parent.mkdir(parents=True, exist_ok=True)
+    coverage_file.write_text("# Primary Source Coverage\n", encoding="utf-8")
+    gold_file.write_bytes(b"PAR1")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "_tracked_files",
+        lambda: [
+            "reports/reconciliation/primary_source_coverage.md",
+            "data/gold/primary_source_gold_candidates.parquet",
+        ],
+    )
+
+    assert module.main() == 0
+    captured = capsys.readouterr()
+    assert "passed" in captured.out

@@ -42,6 +42,9 @@ from qsr_audit.rag import validate_rag_benchmark_pack as validate_rag_benchmark_
 from qsr_audit.rag import validate_rag_reviewer_file as validate_rag_reviewer_file_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
+from qsr_audit.reconcile.primary_source_scaleup import (
+    run_primary_source_scaleup as run_primary_source_scaleup_pipeline,
+)
 from qsr_audit.reconcile.qsr50_scaleup import (
     run_qsr50_scaleup as run_qsr50_scaleup_pipeline,
 )
@@ -672,6 +675,61 @@ def reconcile_qsr50_command(
     console.print(f"Gold candidates parquet: {run.artifacts.qsr50_gold_candidates_parquet_path}")
     console.print(
         f"Unresolved gaps markdown: {run.artifacts.unresolved_reference_gaps_markdown_path}"
+    )
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+
+
+@app.command("reconcile-primary-source")
+def reconcile_primary_source_command(
+    core_path: CoreMetricsOption,
+    reference_dir: ReferenceDirOption,
+) -> None:
+    """Run a primary-source-first reconciliation slice over public-chain reference rows."""
+
+    settings = get_settings()
+    session = begin_command_audit("reconcile-primary-source")
+    input_paths = [core_path, reference_dir]
+    try:
+        run = run_primary_source_scaleup_pipeline(
+            core_path=core_path,
+            reference_dir=reference_dir,
+            settings=settings,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings,
+            session=session,
+            input_paths=input_paths,
+            exc=exc,
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=input_paths,
+        output_paths=[
+            run.artifacts.primary_source_coverage_markdown_path,
+            run.artifacts.primary_source_deltas_csv_path,
+            run.artifacts.primary_source_gold_candidates_parquet_path,
+        ],
+        row_counts={
+            "primary_source_gold_candidates": len(run.primary_source_gold_candidates),
+            "primary_source_deltas": len(run.primary_source_deltas),
+            "reference_coverage": len(run.reference_coverage),
+        },
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="primary_source_reconciliation_candidates",
+        warnings_count=len(run.warnings),
+        errors_count=0,
+    )
+    console.print("[bold cyan]Primary-source reconciliation slice complete[/bold cyan]")
+    console.print(f"Warnings: {len(run.warnings)}")
+    console.print(f"Coverage markdown: {run.artifacts.primary_source_coverage_markdown_path}")
+    console.print(f"Brand deltas CSV: {run.artifacts.primary_source_deltas_csv_path}")
+    console.print(
+        "Gold candidates parquet: " f"{run.artifacts.primary_source_gold_candidates_parquet_path}"
     )
     console.print(f"Manifest: {manifest_path}")
     console.print(f"Audit log: {audit_log_path}")
