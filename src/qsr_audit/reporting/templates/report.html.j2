@@ -204,6 +204,16 @@
             <h2>Syntheticness Overview</h2>
             <div class="metric-value">{{ scorecard.syntheticness_overview.get('total_signals', 0) }}</div>
             <div class="metric-note">Signals are weak-to-moderate triage inputs, not proof of fabrication.</div>
+            {% if scorecard.syntheticness_overview.get('brands_requiring_review') is not none %}
+              <div class="badge-row" style="margin-top: 12px;">
+                <span class="badge warn">
+                  Review required {{ scorecard.syntheticness_overview.get('brands_requiring_review', 0) }}
+                </span>
+                <span class="badge neutral">
+                  Average score {{ scorecard.syntheticness_overview.get('average_brand_score', 0) }} / 100
+                </span>
+              </div>
+            {% endif %}
             {% if scorecard.syntheticness_overview.get('by_strength') %}
               <ul>
                 {% for strength, count in scorecard.syntheticness_overview.get('by_strength', {}).items() %}
@@ -478,6 +488,56 @@
 
         <section class="section">
           <h2>Syntheticness Signals</h2>
+          <div class="grid two-up" style="margin-bottom: 14px;">
+            <div class="panel">
+              <h3>Syntheticness Summary</h3>
+              <div class="badge-row" style="margin-top: 12px;">
+                <span class="badge {{ 'warn' if brand.review_required else 'good' }}">
+                  {{ 'Review required' if brand.review_required else 'No review required' }}
+                </span>
+                <span class="badge neutral">Score {{ brand.syntheticness_score }} / 100</span>
+                <span class="badge neutral">Supporting signals {{ brand.supporting_signals | length }}</span>
+              </div>
+              <p class="metric-note">
+                These scores are weak-to-moderate triage inputs, not proof of fabrication.
+              </p>
+              {% if brand.caveats %}
+                <h3 style="margin-top: 16px;">Caveats</h3>
+                <ul>
+                  {% for caveat in brand.caveats %}
+                    <li>{{ caveat }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+            <div class="panel">
+              <h3>Supporting Signals</h3>
+              {% if brand.supporting_signals %}
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Strength</th>
+                      <th>Field</th>
+                      <th>Contribution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in brand.supporting_signals %}
+                      <tr>
+                        <td>{{ row.title }}</td>
+                        <td>{{ row.strength }}</td>
+                        <td>{{ row.field_name }}</td>
+                        <td>{{ row.score_contribution }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p class="empty">No supporting signals were available.</p>
+              {% endif %}
+            </div>
+          </div>
           {% if brand.syntheticness_signals %}
             <table>
               <thead>

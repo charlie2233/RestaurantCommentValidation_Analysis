@@ -148,6 +148,10 @@ def render_global_markdown(bundle: ReportBundle) -> str:
     lines.extend(["", "## Syntheticness Overview", ""])
     synth = scorecard.syntheticness_overview
     lines.append(f"- Total signals: `{synth.get('total_signals', 0)}`")
+    if "brands_requiring_review" in synth:
+        lines.append(f"- Brands requiring review: `{synth.get('brands_requiring_review', 0)}`")
+    if "average_brand_score" in synth:
+        lines.append(f"- Average brand score: `{synth.get('average_brand_score', 0.0)}`")
     by_strength = synth.get("by_strength", {})
     if by_strength:
         for strength, count in sorted(by_strength.items()):
@@ -213,16 +217,51 @@ def render_brand_markdown(scorecard: BrandScorecard, *, generated_at: str) -> st
             ],
         ),
         "",
-        "## Syntheticness Signals",
+        "## Syntheticness Summary",
         "",
-        _rows_to_markdown_table(
-            scorecard.syntheticness_signals,
-            columns=["title", "strength", "field_name", "plain_english"],
-        ),
+        f"- Syntheticness score: `{scorecard.syntheticness_score}` / 100",
+        f"- Review required: `{'yes' if scorecard.review_required else 'no'}`",
         "",
-        "## Open Issues",
+        "### Supporting Signals",
         "",
     ]
+    if scorecard.supporting_signals:
+        lines.append(
+            _rows_to_markdown_table(
+                scorecard.supporting_signals,
+                columns=["title", "strength", "field_name", "plain_english", "score_contribution"],
+            )
+        )
+    else:
+        lines.append("_No supporting signals were available._")
+
+    lines.extend(
+        [
+            "",
+            "### Caveats",
+            "",
+        ]
+    )
+    if scorecard.caveats:
+        for caveat in scorecard.caveats:
+            lines.append(f"- {caveat}")
+    else:
+        lines.append("- No syntheticness caveats were recorded.")
+
+    lines.extend(
+        [
+            "",
+            "## Syntheticness Signals",
+            "",
+            _rows_to_markdown_table(
+                scorecard.syntheticness_signals,
+                columns=["title", "strength", "field_name", "plain_english"],
+            ),
+            "",
+            "## Open Issues",
+            "",
+        ]
+    )
     if scorecard.open_issues:
         for issue in scorecard.open_issues:
             lines.append(f"- {issue}")

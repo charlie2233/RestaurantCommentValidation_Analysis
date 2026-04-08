@@ -56,6 +56,10 @@ class BrandScorecard:
     invariant_results: list[dict[str, Any]]
     provenance_grades: dict[str, str]
     reconciliation_summary: list[dict[str, Any]]
+    syntheticness_score: int
+    supporting_signals: list[dict[str, Any]]
+    review_required: bool
+    caveats: list[str]
     syntheticness_signals: list[dict[str, Any]]
     open_issues: list[str]
 
@@ -125,11 +129,14 @@ def build_report_bundle(inputs: ReportInputs) -> ReportBundle:
 
     brands = []
     for row in inputs.reconciled_core_metrics.to_dict(orient="records"):
+        synthetic_signals = synthetic_by_brand.get(str(row["brand_name"]), [])
+        syntheticness_summary = _syntheticness_summary(synthetic_signals)
         brands.append(
             _build_brand_scorecard(
                 row=row,
                 brand_findings=validation_by_brand.get(str(row["brand_name"]), []),
-                synthetic_signals=synthetic_by_brand.get(str(row["brand_name"]), []),
+                synthetic_signals=synthetic_signals,
+                syntheticness_summary=syntheticness_summary,
                 global_checks=global_checks,
             )
         )
@@ -178,6 +185,13 @@ def _build_global_scorecard(
     weakest_provenance = _weakest_provenance_fields(inputs.reconciled_core_metrics)
     biggest_errors = _biggest_reconciliation_errors(inputs.reconciled_core_metrics)
     synthetic_overview = _syntheticness_overview(inputs.syntheticness_signals)
+    synthetic_overview["brands_requiring_review"] = sum(
+        1 for brand in brand_scorecards if brand.review_required
+    )
+    synthetic_overview["average_brand_score"] = round(
+        sum(brand.syntheticness_score for brand in brand_scorecards) / total_brands,
+        1,
+    ) if total_brands else 0.0
 
     counts = inputs.validation_payload.get("counts", {}) if inputs.validation_payload else {}
     validation_counts = {
@@ -207,6 +221,7 @@ def _build_brand_scorecard(
     row: dict[str, Any],
     brand_findings: list[dict[str, Any]],
     synthetic_signals: list[dict[str, Any]],
+    syntheticness_summary: dict[str, Any],
     global_checks: dict[str, str],
 ) -> BrandScorecard:
     brand_name = str(row["brand_name"])
@@ -254,6 +269,10 @@ def _build_brand_scorecard(
         invariant_results=invariant_results,
         provenance_grades=provenance_grades,
         reconciliation_summary=reconciliation_summary,
+        syntheticness_score=syntheticness_summary["syntheticness_score"],
+        supporting_signals=syntheticness_summary["supporting_signals"],
+        review_required=syntheticness_summary["review_required"],
+        caveats=syntheticness_summary["caveats"],
         syntheticness_signals=synthetic_entries,
         open_issues=open_issues,
     )
@@ -536,6 +555,90 @@ def _syntheticness_overview(syntheticness_signals: pd.DataFrame) -> dict[str, An
         "by_strength": {str(key): int(value) for key, value in strength_counts.items()},
         "top_types": {str(key): int(value) for key, value in type_counts.items()},
     }
+
+
+def _syntheticness_summary(synthetic_signals: list[dict[str, Any]]) -> dict[str, Any]:
+    """Reduce raw syntheticness signals into a small triage summary."""
+
+    if not synthetic_signals:
+        return {
+            "syntheticness_score": 0,
+            "supporting_signals": [],
+            "review_required": False,
+            "caveats": [
+                "No syntheticness signals were recorded for this brand.",
+                "Absence of signals is not proof of cleanliness; it only means the current checks were quiet.",
+            ],
+        }
+
+    ranked_signals: list[tuple[int, dict[str, Any]]] = []
+    caveats: list[str] = []
+    for signal in synthetic_signals:
+        strength = str(signal.get("strength") or "unknown").lower()
+        contribution = _syntheticness_strength_score(strength)
+        ranked_signals.append((contribution, signal))
+        caveat = signal.get("caveat")
+        if caveat:
+            caveat_text = str(caveat).strip()
+            if caveat_text and caveat_text not in caveats:
+                caveats.append(caveat_text)
+
+    ranked_signals.sort(
+        key=lambda item: (
+            item[0],
+            str(item[1].get("field_name") or ""),
+            str(item[1].get("title") or ""),
+        ),
+        reverse=True,
+    )
+
+    score = sum(contribution for contribution, _ in ranked_signals)
+    distinct_fields = {
+        str(signal.get("field_name")).strip()
+        for signal in synthetic_signals
+        if str(signal.get("field_name") or "").strip()
+    }
+    score += max(0, len(distinct_fields) - 1) * 5
+    syntheticness_score = min(100, int(round(score)))
+
+    supporting_signals = [
+        {
+            "title": str(signal.get("title") or "Untitled signal"),
+            "strength": str(signal.get("strength") or "unknown"),
+            "field_name": signal.get("field_name"),
+            "plain_english": str(signal.get("plain_english") or ""),
+            "score_contribution": contribution,
+        }
+        for contribution, signal in ranked_signals[:3]
+    ]
+
+    has_material_signal = any(contribution >= 25 for contribution, _ in ranked_signals)
+    review_required = syntheticness_score >= 35 or has_material_signal
+    if review_required and (
+        "These signals are weak-to-moderate anomaly indicators, not proof of fabrication."
+        not in caveats
+    ):
+        caveats.insert(
+            0,
+            "These signals are weak-to-moderate anomaly indicators, not proof of fabrication.",
+        )
+    if "Review clusters of signals, not any single metric in isolation." not in caveats:
+        caveats.append("Review clusters of signals, not any single metric in isolation.")
+
+    return {
+        "syntheticness_score": syntheticness_score,
+        "supporting_signals": supporting_signals,
+        "review_required": review_required,
+        "caveats": caveats[:4],
+    }
+
+
+def _syntheticness_strength_score(strength: str) -> int:
+    return {
+        "strong": 45,
+        "moderate": 25,
+        "weak": 10,
+    }.get(strength, 0)
 
 
 def _synthetic_signals_by_brand(
