@@ -6,5 +6,5 @@
     "analyst-team"
   ],
   "pack_status": "in_review",
-  "notes": "First analyst-cycle query batch loaded from the committed starter suggestions on 2026-04-07. Human reviewer judgments are still required before adjudication and benchmark scoring are treated as stable evidence."
+  "notes": "First committed retrieval-only analyst cycle for the QSR benchmark pack. The pack now includes 16 high-value queries, but reviewer judgments remain provisional until two reviewers complete the loop and conflicts are adjudicated."
 }

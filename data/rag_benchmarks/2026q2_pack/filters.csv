@@ -1,1 +1,5 @@
 query_id,filter_key,filter_value,notes
+starter-taco-bell-blocked-vs-publishable,publish_status,blocked,Focus the lookup on rows that are not publishable.
+starter-five-brand-publishability-split,publish_status,publishable|advisory|blocked,Review the full status split across the five-brand slice.
+starter-nonblocked-auv-filter-scan,publish_status,non_blocked,Keep the scan restricted to rows that are still eligible for review.
+starter-starbucks-source-kind-lookup,source_kind,gold_reconciled_core_metrics|gold_provenance_registry,Look up the provenance-bearing source kinds only.
