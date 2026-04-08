@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from typer.testing import CliRunner
+
 from qsr_audit.cli import app
 from qsr_audit.config import Settings
 from qsr_audit.validate import run_syntheticness
@@ -19,7 +21,6 @@ from qsr_audit.validate.syntheticness_stats import (
     extract_first_digits,
     extract_first_two_digits,
 )
-from typer.testing import CliRunner
 
 
 def _build_settings(tmp_path: Path) -> Settings:
@@ -163,8 +164,28 @@ def test_run_syntheticness_writes_expected_outputs(tmp_path: Path) -> None:
     )
 
     signals = pd.read_parquet(run.artifacts.signals_parquet)
-    assert "signal_type" in signals.columns
-    assert "plain_english" in signals.columns
+    assert list(signals.columns) == [
+        "signal_type",
+        "title",
+        "plain_english",
+        "strength",
+        "dataset",
+        "field_name",
+        "method",
+        "sample_size",
+        "score",
+        "benchmark",
+        "p_value",
+        "z_score",
+        "threshold",
+        "observed",
+        "expected",
+        "interpretation",
+        "caveat",
+        "details",
+    ]
+    assert not signals.empty
+    assert {"signal_type", "plain_english", "caveat"}.issubset(signals.columns)
 
 
 def test_cli_run_syntheticness_smoke(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
