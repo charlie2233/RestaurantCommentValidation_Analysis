@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
-from typing import Sequence
 
 import pandas as pd
 
@@ -502,7 +502,9 @@ def _artifact_card(title: str, href: str, description: str) -> str:
     </article>"""
 
 
-def _publishability_rows(*, report_bundle: ReportBundle, demo_gold: pd.DataFrame) -> list[dict[str, object]]:
+def _publishability_rows(
+    *, report_bundle: ReportBundle, demo_gold: pd.DataFrame
+) -> list[dict[str, object]]:
     validation_lookup = {
         scorecard.canonical_brand_name: scorecard.validation_status
         for scorecard in report_bundle.brand_scorecards
@@ -523,7 +525,9 @@ def _publishability_rows(*, report_bundle: ReportBundle, demo_gold: pd.DataFrame
     return rows
 
 
-def _provenance_rows(*, report_bundle: ReportBundle, brand_deltas: pd.DataFrame) -> list[dict[str, object]]:
+def _provenance_rows(
+    *, report_bundle: ReportBundle, brand_deltas: pd.DataFrame
+) -> list[dict[str, object]]:
     scorecard_lookup = {
         scorecard.canonical_brand_name: scorecard for scorecard in report_bundle.brand_scorecards
     }
