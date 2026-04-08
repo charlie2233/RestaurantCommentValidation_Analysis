@@ -366,6 +366,7 @@ def load_reference_catalog(
             continue
 
         standardized = standardize_reference_frame(frame, source_file_name=file_name)
+        warnings.extend(_unresolved_reference_rows_warnings(standardized, file_name=file_name))
         if _count_populated_metric_fields(standardized) == 0:
             warnings.append(
                 f"Reference file `{file_name}` contains rows but no populated metric fields."
@@ -482,6 +483,12 @@ def build_reconciled_core_metrics(
         ].copy()
 
         row_warning_messages: list[str] = []
+        if resolution.match_method == "unmatched":
+            row_warning_messages.append(
+                f"`{core_row['brand_name']}` did not exact-resolve to a known canonical brand; "
+                "no fuzzy match was applied."
+            )
+            warnings.append(row_warning_messages[-1])
         if matched_refs.empty:
             row_warning_messages.append(
                 f"No reference coverage found for `{core_row['brand_name']}`."
@@ -851,6 +858,29 @@ def _count_populated_metric_fields(frame: pd.DataFrame) -> int:
     if not metric_columns:
         return 0
     return int(sum(int(frame[column].notna().any()) for column in metric_columns))
+
+
+def _unresolved_reference_rows_warnings(
+    frame: pd.DataFrame,
+    *,
+    file_name: str,
+) -> list[str]:
+    warnings: list[str] = []
+    if frame.empty:
+        return warnings
+
+    for row in frame.to_dict(orient="records"):
+        canonical_brand_name = _clean_optional_text(row.get("canonical_brand_name"))
+        if canonical_brand_name is not None and row.get("brand_match_method") == "alias_exact":
+            continue
+        row_number = row.get("source_row_number")
+        brand_name = _clean_optional_text(row.get("brand_name")) or "unknown"
+        warnings.append(
+            f"Reference file `{file_name}` row {row_number} for `{brand_name}` did not exact-resolve "
+            "to a known canonical brand. Add an explicit canonical_brand_name or alias instead of "
+            "relying on fuzzy matching."
+        )
+    return warnings
 
 
 def _reference_columns() -> list[str]:

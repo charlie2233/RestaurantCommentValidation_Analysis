@@ -51,6 +51,7 @@ def resolve_brand_name(
     brand_name: str | None,
     *,
     candidate_brands: Iterable[str] | None = None,
+    allow_fuzzy: bool = False,
 ) -> BrandResolution:
     """Resolve a workbook or reference brand to the canonical dictionary."""
 
@@ -75,21 +76,22 @@ def resolve_brand_name(
             matched_alias=normalized,
         )
 
-    best_brand, best_score = _best_fuzzy_match(normalized, alias_map)
-    if best_brand is not None and best_score >= 0.93:
-        return BrandResolution(
-            input_brand_name=original,
-            canonical_brand_name=best_brand,
-            match_method="fuzzy_high",
-            match_confidence=0.9,
-        )
-    if best_brand is not None and best_score >= 0.85:
-        return BrandResolution(
-            input_brand_name=original,
-            canonical_brand_name=best_brand,
-            match_method="fuzzy_medium",
-            match_confidence=0.75,
-        )
+    if allow_fuzzy:
+        best_brand, best_score = _best_fuzzy_match(normalized, alias_map)
+        if best_brand is not None and best_score >= 0.93:
+            return BrandResolution(
+                input_brand_name=original,
+                canonical_brand_name=best_brand,
+                match_method="fuzzy_high",
+                match_confidence=0.9,
+            )
+        if best_brand is not None and best_score >= 0.85:
+            return BrandResolution(
+                input_brand_name=original,
+                canonical_brand_name=best_brand,
+                match_method="fuzzy_medium",
+                match_confidence=0.75,
+            )
 
     return BrandResolution(
         input_brand_name=original,
@@ -103,10 +105,18 @@ def resolve_brand_series(
     values: Iterable[str | None],
     *,
     candidate_brands: Iterable[str] | None = None,
+    allow_fuzzy: bool = False,
 ) -> list[BrandResolution]:
     """Resolve a series of brand names."""
 
-    return [resolve_brand_name(value, candidate_brands=candidate_brands) for value in values]
+    return [
+        resolve_brand_name(
+            value,
+            candidate_brands=candidate_brands,
+            allow_fuzzy=allow_fuzzy,
+        )
+        for value in values
+    ]
 
 
 def _alias_map(candidate_brands: Iterable[str] | None = None) -> dict[str, str]:

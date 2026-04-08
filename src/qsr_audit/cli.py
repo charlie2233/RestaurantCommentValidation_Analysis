@@ -41,6 +41,9 @@ from qsr_audit.rag import validate_rag_benchmark_pack as validate_rag_benchmark_
 from qsr_audit.rag import validate_rag_reviewer_file as validate_rag_reviewer_file_pipeline
 from qsr_audit.reconcile import audit_reference_coverage as audit_reference_coverage_pipeline
 from qsr_audit.reconcile import reconcile_core_metrics as reconcile_core_metrics_pipeline
+from qsr_audit.reconcile.qsr50_scaleup import (
+    run_qsr50_scaleup as run_qsr50_scaleup_pipeline,
+)
 from qsr_audit.release import preflight_release as preflight_release_pipeline
 from qsr_audit.reporting import write_reports as write_reports_pipeline
 from qsr_audit.strategy import generate_strategy_outputs as generate_strategy_outputs_pipeline
@@ -612,6 +615,63 @@ def reconcile_command(
     console.print(f"Summary: {run.artifacts.reconciliation_summary_path}")
     console.print(f"Reference coverage parquet: {run.artifacts.reference_coverage_parquet_path}")
     console.print(f"Reference coverage markdown: {run.artifacts.reference_coverage_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+
+
+@app.command("reconcile-qsr50")
+def reconcile_qsr50_command(
+    core_path: CoreMetricsOption,
+    reference_dir: ReferenceDirOption,
+) -> None:
+    """Run a QSR50-only broader reconciliation slice and emit analyst-readable deltas."""
+
+    settings = get_settings()
+    session = begin_command_audit("reconcile-qsr50")
+    input_paths = [core_path, reference_dir]
+    try:
+        run = run_qsr50_scaleup_pipeline(
+            core_path=core_path,
+            reference_dir=reference_dir,
+            settings=settings,
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings,
+            session=session,
+            input_paths=input_paths,
+            exc=exc,
+        )
+        raise
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=input_paths,
+        output_paths=[
+            run.artifacts.qsr50_coverage_markdown_path,
+            run.artifacts.brand_deltas_full_csv_path,
+            run.artifacts.qsr50_gold_candidates_parquet_path,
+            run.artifacts.unresolved_reference_gaps_markdown_path,
+        ],
+        row_counts={
+            "qsr50_gold_candidates": len(run.qsr50_gold_candidates),
+            "brand_deltas_full": len(run.brand_deltas_full),
+            "reference_coverage": len(run.reference_coverage),
+        },
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="qsr50_reconciliation_candidates",
+        warnings_count=len(run.warnings),
+        errors_count=0,
+    )
+    console.print("[bold cyan]QSR50 reconciliation slice complete[/bold cyan]")
+    console.print(f"Warnings: {len(run.warnings)}")
+    console.print(f"Coverage markdown: {run.artifacts.qsr50_coverage_markdown_path}")
+    console.print(f"Brand deltas CSV: {run.artifacts.brand_deltas_full_csv_path}")
+    console.print(f"Gold candidates parquet: {run.artifacts.qsr50_gold_candidates_parquet_path}")
+    console.print(
+        f"Unresolved gaps markdown: {run.artifacts.unresolved_reference_gaps_markdown_path}"
+    )
     console.print(f"Manifest: {manifest_path}")
     console.print(f"Audit log: {audit_log_path}")
 

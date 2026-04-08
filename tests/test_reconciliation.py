@@ -233,6 +233,48 @@ def test_resolve_brand_name_alias_support() -> None:
     assert resolution.match_confidence == 1.0
 
 
+def test_resolve_brand_name_does_not_fuzzy_match_by_default() -> None:
+    resolution = resolve_brand_name("McDonlds")
+
+    assert resolution.is_matched is False
+    assert resolution.canonical_brand_name is None
+    assert resolution.match_method == "unmatched"
+    assert resolution.match_confidence == 0.0
+
+
+def test_load_reference_catalog_warns_on_unresolved_reference_brand(tmp_path: Path) -> None:
+    settings = _build_settings(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "brand_name": "McDonlds",
+                "canonical_brand_name": "",
+                "source_type": "qsr50",
+                "source_name": "QSR 50",
+                "source_url_or_doc_id": "doc-ambiguous",
+                "as_of_date": "2024-12-31",
+                "method_reported_or_estimated": "reported",
+                "confidence_score": 0.7,
+                "notes": "Typo row for warning coverage",
+                "qsr50_rank": 1,
+                "us_store_count_2024": 13559,
+                "systemwide_revenue_usd_billions_2024": 53.5,
+                "average_unit_volume_usd_thousands": 4001,
+                "currency": "USD",
+                "geography": "US",
+                "source_page": "12",
+                "source_excerpt": "Typo row",
+            }
+        ]
+    ).to_csv(settings.data_reference / "qsr50_reference.csv", index=False)
+
+    _catalog, warnings, _registry = load_reference_catalog(settings.data_reference)
+
+    assert any(
+        "did not exact-resolve to a known canonical brand" in warning for warning in warnings
+    )
+
+
 def test_reconcile_core_metrics_writes_gold_outputs_and_warnings(tmp_path: Path) -> None:
     settings = _build_settings(tmp_path)
     core_path = settings.data_silver / "core_brand_metrics.parquet"

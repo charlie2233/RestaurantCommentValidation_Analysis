@@ -20,6 +20,7 @@ from typer.testing import CliRunner
                 "validate-workbook",
                 "run-syntheticness",
                 "reconcile",
+                "reconcile-qsr50",
                 "audit-reference",
                 "gate-gold",
                 "snapshot-gold",
@@ -58,6 +59,14 @@ from typer.testing import CliRunner
         (
             ["reconcile", "--help"],
             ["manual reference", "reference coverage", "CSV files and templates"],
+        ),
+        (
+            ["reconcile-qsr50", "--help"],
+            [
+                "QSR50-only broader reconciliation slice",
+                "analyst-readable deltas",
+                "reference-dir",
+            ],
         ),
         (
             ["audit-reference", "--help"],
