@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 
 from qsr_audit.config import get_settings
+from qsr_audit.demo import run_five_brand_happy_path_demo as run_five_brand_happy_path_demo_pipeline
 from qsr_audit.forecasting import build_forecast_panel as build_forecast_panel_pipeline
 from qsr_audit.forecasting import forecast_baselines as forecast_baselines_pipeline
 from qsr_audit.forecasting import snapshot_gold_history as snapshot_gold_history_pipeline
@@ -222,6 +223,31 @@ ExperimentOutputOption = Annotated[
         help=(
             "Directory for non-analyst-facing experiment artifacts. Defaults to "
             "`artifacts/forecasting/<metric>`."
+        ),
+    ),
+]
+
+DemoOutputOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--output-root",
+        file_okay=False,
+        dir_okay=True,
+        path_type=Path,
+        help=(
+            "Directory for the isolated demo workspace and summary artifacts. Defaults to "
+            "`artifacts/demo/5-brand-happy-path`."
+        ),
+    ),
+]
+
+DemoBrandsOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--brand",
+        help=(
+            "Optional explicit brand name for the 5-brand slice. Pass exactly five times to "
+            "override deterministic auto-selection."
         ),
     ),
 ]
@@ -695,6 +721,78 @@ def gate_gold_command() -> None:
     console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
     console.print(f"Manifest: {manifest_path}")
     console.print(f"Audit log: {audit_log_path}")
+
+
+@app.command("run-5-brand-demo")
+def run_5_brand_demo_command(
+    input_path: InputWorkbookOption,
+    output_root: DemoOutputOption = None,
+    brand: DemoBrandsOption = None,
+) -> None:
+    """Run an isolated 5-brand happy-path walkthrough with demo references and final artifacts."""
+
+    settings = get_settings()
+    session = begin_command_audit("run-5-brand-demo")
+    try:
+        run = run_five_brand_happy_path_demo_pipeline(
+            input_path=input_path,
+            settings=settings,
+            output_root=output_root,
+            brands=tuple(brand or ()),
+        )
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=[input_path], exc=exc
+        )
+        raise
+
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=[input_path],
+        output_paths=[
+            run.artifacts.summary_json_path,
+            run.artifacts.summary_markdown_path,
+            run.artifacts.selected_brands_json_path,
+            run.gold_gate_run.artifacts.decisions_path,
+            run.gold_gate_run.artifacts.publishable_path,
+            run.report_artifacts.global_json,
+            run.strategy_run.artifacts.playbook_markdown_path,
+            run.preflight_run.artifacts.summary_json_path,
+            run.preflight_run.artifacts.summary_markdown_path,
+        ],
+        row_counts={
+            "selected_brands": len(run.selected_brands),
+            "publishable_rows": int(run.gold_gate_run.summary["publishable_count"]),
+            "advisory_rows": int(run.gold_gate_run.summary["advisory_count"]),
+            "blocked_rows": int(run.gold_gate_run.summary["blocked_count"]),
+        },
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="demo_happy_path",
+        warnings_count=int(run.preflight_run.summary["warning_check_count"]),
+        errors_count=int(run.preflight_run.summary["failed_check_count"]),
+        upstream_artifact_references=[
+            latest_manifest_path(run.demo_settings, "validate-workbook"),
+            latest_manifest_path(run.demo_settings, "run-syntheticness"),
+            latest_manifest_path(run.demo_settings, "reconcile"),
+            latest_manifest_path(run.demo_settings, "gate-gold"),
+        ],
+    )
+
+    console.print("[bold green]5-brand happy-path demo complete[/bold green]")
+    console.print(f"Selected brands: {', '.join(run.selected_brands)}")
+    console.print(f"Demo output root: {run.output_root}")
+    console.print(f"Demo summary JSON: {run.artifacts.summary_json_path}")
+    console.print(f"Demo summary Markdown: {run.artifacts.summary_markdown_path}")
+    console.print(f"Gold decisions: {run.gold_gate_run.artifacts.decisions_path}")
+    console.print(f"Global report JSON: {run.report_artifacts.global_json}")
+    console.print(f"Strategy playbook: {run.strategy_run.artifacts.playbook_markdown_path}")
+    console.print(f"Preflight summary: {run.preflight_run.artifacts.summary_markdown_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+    if not run.preflight_run.passed:
+        raise typer.Exit(code=1)
 
 
 @app.command("snapshot-gold")
