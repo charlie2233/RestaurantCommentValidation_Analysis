@@ -265,9 +265,11 @@ def _build_brand_deltas_full(
     decision_lookup = gold_decisions.set_index(["canonical_brand_name", "metric_name"])[
         "publish_status"
     ].to_dict()
-    recommendation_lookup = _brand_publish_recommendations(gold_decisions).set_index(
-        "canonical_brand_name"
-    )["brand_publish_status_recommendation"].to_dict()
+    recommendation_lookup = (
+        _brand_publish_recommendations(gold_decisions)
+        .set_index("canonical_brand_name")["brand_publish_status_recommendation"]
+        .to_dict()
+    )
 
     rows: list[dict[str, Any]] = []
     for record in reconciled_core_metrics.to_dict(orient="records"):
@@ -287,12 +289,18 @@ def _build_brand_deltas_full(
                     "reference_value": record.get(f"{prefix}_reference_value"),
                     "absolute_error": record.get(f"{prefix}_absolute_error"),
                     "relative_error": record.get(f"{prefix}_relative_error"),
-                    "source_type": None if best_reference is None else best_reference.get("source_type"),
-                    "source_name": None if best_reference is None else best_reference.get("source_name"),
+                    "source_type": None
+                    if best_reference is None
+                    else best_reference.get("source_type"),
+                    "source_name": None
+                    if best_reference is None
+                    else best_reference.get("source_name"),
                     "source_locator": None
                     if best_reference is None
                     else best_reference.get("source_url_or_doc_id"),
-                    "as_of_date": None if best_reference is None else best_reference.get("as_of_date"),
+                    "as_of_date": None
+                    if best_reference is None
+                    else best_reference.get("as_of_date"),
                     "method_reported_or_estimated": None
                     if best_reference is None
                     else best_reference.get("method_reported_or_estimated"),
@@ -521,4 +529,3 @@ def _render_unresolved_reference_gaps(
             lines.append(f"- `{brand_name}`: publishable candidate metrics `{metrics}`.")
 
     return "\n".join(lines) + "\n"
-

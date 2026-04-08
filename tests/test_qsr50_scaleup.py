@@ -306,9 +306,9 @@ def test_reconcile_qsr50_command_generates_broader_slice_outputs(
     assert set(matched_rows["source_type"].dropna()) == {"qsr50"}
     assert "sec-doc" not in matched_rows["source_locator"].fillna("").tolist()
 
-    coverage_markdown = (
-        settings.reports_dir / "reconciliation" / "qsr50_coverage.md"
-    ).read_text(encoding="utf-8")
+    coverage_markdown = (settings.reports_dir / "reconciliation" / "qsr50_coverage.md").read_text(
+        encoding="utf-8"
+    )
     assert "Brands with QSR50 coverage" in coverage_markdown
     assert "Sonic Drive-In" in coverage_markdown
 
