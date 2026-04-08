@@ -1,53 +1,32 @@
-# 5-Brand Happy-Path Demo Walkthrough
+# 5-brand happy-path demo walkthrough
 
-This walkthrough is for reviewers, judges, and demo consumers who need to verify
-the showcase layer without reading the whole codebase.
-
-## Scope
-
-The demo covers exactly five brands: Starbucks, Taco Bell, Raising Cane's,
-Dutch Bros, and Shake Shack. It is a happy-path slice, not a claim that the
-entire workbook is ready for external use.
+This walkthrough is for reviewers and judges who want a fast read on what the
+demo shows and where to look in the generated artifacts.
 
 ## Run
 
 ```bash
+qsr-audit demo-happy-path --input data/raw/<workbook>.xlsx --reference-dir data/reference/
 qsr-audit package-demo
-# or
-make demo-bundle
+# or: make demo-bundle
 ```
 
-The command packages the demo outputs into `artifacts/demo_bundle/` and writes
-the screenshot-friendly hub to `reports/demo/index.html`.
+## What to inspect
 
-## Review Order
+- `reports/demo/index.html` for the entry point and the five-brand overview.
+- `reports/validation/core_scorecard.html` for row-level publishability status.
+- `reports/reconciliation/brand_deltas.csv` for metric deltas and provenance fields.
+- `reports/summary/top_risks.md` for a short list of the highest-signal issues.
+- `artifacts/demo_bundle/` for the packaged shareable output set.
 
-1. Open `reports/demo/index.html`.
-2. Confirm the five brands listed on the hub match the intended demo slice.
-3. Check the publishability summary and verify `publishable`, `advisory`, and
-   `blocked` rows remain distinct.
-4. Review the reconciliation provenance summary for source coverage and method
-   notes.
-5. Scan the top invariant failures and the syntheticness review summary for the
-   highest-risk items.
-6. Open `reports/validation/core_scorecard.html` if you want the full brand-level
-   table.
-7. Open `reports/reconciliation/brand_deltas.csv` if you want the row-level
-   deltas behind the summary.
-8. Open `reports/summary/top_risks.md` for the short risk narrative.
+## What this proves
 
-## What To Look For
+- The happy-path five-brand slice can move through the pipeline end to end.
+- The demo hub surfaces the important review signals without hiding blocked rows.
+- The packaged bundle makes the outputs easy to hand to someone outside the repo.
 
-- The hub should make the five-brand scope obvious.
-- Publishable rows should stay separate from advisory and blocked rows.
-- Reconciliation provenance should be visible enough to explain why a row was
-  accepted, downgraded, or blocked.
-- Syntheticness review should be presented as review context, not as proof of
-  fabrication.
+## What this does not prove
 
-## What Not To Claim
-
-- Do not claim full-workbook validation.
-- Do not claim the absence of issues outside the five-brand slice.
-- Do not treat advisory or blocked rows as publishable.
-- Do not present the bundle as a release preflight replacement.
+- It does not mean the full workbook is ready for publication.
+- It does not cover non-demo brands or unmodeled edge cases.
+- It does not replace the underlying validation, reconciliation, or review workflow.

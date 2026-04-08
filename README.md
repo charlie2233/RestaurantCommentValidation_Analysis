@@ -86,39 +86,39 @@ make run-full-audit
 
 ## 5-brand happy-path demo
 
-The showcase demo is a fixed five-brand slice built to be easy to run, easy to
-inspect, and easy to share. It covers these brands only: Starbucks, Taco Bell,
-Raising Cane's, Dutch Bros, and Shake Shack.
+This repo includes a focused five-brand showcase built from the happy-path artifacts
+introduced by PR #15. It is meant to be easy to run, easy to inspect, and easy to share.
 
-Run the demo bundle with one command:
+Run the demo and package the review bundle:
 
 ```bash
+qsr-audit demo-happy-path --input data/raw/<workbook>.xlsx --reference-dir data/reference/
 qsr-audit package-demo
-# or, if you prefer the Make wrapper:
-make demo-bundle
+# or: make demo-bundle
 ```
 
-The bundle packages the happy-path outputs into `artifacts/demo_bundle/` and
-regenerates the static demo hub at `reports/demo/index.html`.
+The demo slice includes these five brands:
 
-### What the demo proves
+- Starbucks
+- Taco Bell
+- Raising Cane's
+- Dutch Bros
+- Shake Shack
 
-- The five-brand happy-path pipeline can complete end to end on a real workbook
-  slice.
-- The showcase layer can present publishability, reconciliation provenance,
-  invariant failures, and syntheticness review summaries without collapsing
-  `publishable`, `advisory`, and `blocked` into one bucket.
+What the demo proves:
+
+- The five-brand happy-path pipeline can complete end to end on a real workbook slice.
+- The showcase layer can present publishability, reconciliation provenance, invariant failures, and syntheticness review summaries without collapsing `publishable`, `advisory`, and `blocked` into one bucket.
 - The bundle can be handed to a reviewer without needing the full repo context.
 
-### What the demo does not prove
+What the demo does not prove:
 
 - It does not prove full-workbook readiness or all-brand correctness.
-- It does not prove the workbook has no unresolved issues outside the five-brand
-  slice.
+- It does not prove the workbook has no unresolved issues outside the five-brand slice.
 - It does not promote `advisory` or `blocked` rows into publishable output.
 - It does not replace the release preflight or the broader validation pipeline.
 
-### Demo artifacts
+Primary demo artifacts:
 
 | Artifact | Purpose |
 |---|---|
