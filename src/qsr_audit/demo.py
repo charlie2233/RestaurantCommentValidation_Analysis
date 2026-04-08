@@ -27,6 +27,7 @@ DEMO_BRANDS: tuple[str, ...] = (
 )
 DEMO_COMMAND_NAME = "demo-happy-path"
 DEMO_WORKSPACE_DIRNAME = "demo_happy_path"
+DEMO_REFERENCE_FILENAME = "qsr50_reference.csv"
 DELTA_FIELD_SPECS: tuple[tuple[str, str, str], ...] = (
     ("rank", "reference_rank", "rank"),
     ("us_store_count_2024", "reference_us_store_count_2024", "store_count"),
@@ -81,16 +82,20 @@ def run_demo_happy_path(
     )
     if workspace_root.exists():
         shutil.rmtree(workspace_root)
+    demo_reference_dir = _build_demo_reference_dir(
+        source_reference_dir=resolved_reference_dir,
+        workspace_root=workspace_root,
+    )
     demo_settings = _build_demo_settings(
         base_settings=resolved_settings,
         workspace_root=workspace_root,
-        reference_dir=resolved_reference_dir,
+        reference_dir=demo_reference_dir,
     )
 
     ingest_workbook(workbook_path, demo_settings)
     _filter_demo_silver(demo_settings)
 
-    reference_frame, reference_warnings, _ = load_reference_catalog(resolved_reference_dir)
+    reference_frame, reference_warnings, _ = load_reference_catalog(demo_reference_dir)
     missing_brands = _missing_demo_reference_brands(reference_frame)
     if missing_brands:
         joined = ", ".join(missing_brands)
@@ -113,7 +118,7 @@ def run_demo_happy_path(
     )
     reconciliation_run = reconcile_core_metrics(
         core_path=demo_settings.data_silver / "core_brand_metrics.parquet",
-        reference_dir=resolved_reference_dir,
+        reference_dir=demo_reference_dir,
         settings=demo_settings,
         gold_dir=demo_settings.data_gold,
         report_dir=demo_settings.reports_dir / "reconciliation",
@@ -155,17 +160,23 @@ def run_demo_happy_path(
 
 
 def _default_workbook_path(settings: Settings) -> Path:
-    workbooks = sorted(
-        path
-        for path in settings.data_raw.iterdir()
-        if path.is_file() and path.suffix.lower() in {".xlsx", ".xlsm", ".xls"}
-    )
+    workbooks = _supported_workbook_paths(settings.data_raw)
     if len(workbooks) != 1:
+        workbook_list = ", ".join(path.name for path in workbooks) or "none found"
         raise FileNotFoundError(
             "demo-happy-path requires exactly one workbook under `data/raw/` when "
-            "`--input` is not provided."
+            f"`--input` is not provided. Found: {workbook_list}. "
+            "Pass `--input <workbook>` explicitly when multiple workbook files exist."
         )
     return workbooks[0]
+
+
+def _supported_workbook_paths(raw_dir: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in raw_dir.iterdir()
+        if path.is_file() and path.suffix.lower() in {".xlsx", ".xlsm", ".xls"}
+    )
 
 
 def _build_demo_settings(
@@ -186,6 +197,21 @@ def _build_demo_settings(
         artifacts_dir=workspace_root / "artifacts",
         log_level=base_settings.log_level,
     )
+
+
+def _build_demo_reference_dir(*, source_reference_dir: Path, workspace_root: Path) -> Path:
+    demo_reference_dir = workspace_root / "reference"
+    demo_reference_dir.mkdir(parents=True, exist_ok=True)
+
+    source_path = source_reference_dir / DEMO_REFERENCE_FILENAME
+    template_path = source_reference_dir / "templates" / DEMO_REFERENCE_FILENAME
+    if source_path.exists():
+        shutil.copy2(source_path, demo_reference_dir / DEMO_REFERENCE_FILENAME)
+        return demo_reference_dir
+    if template_path.exists():
+        (demo_reference_dir / "templates").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(template_path, demo_reference_dir / "templates" / DEMO_REFERENCE_FILENAME)
+    return demo_reference_dir
 
 
 def _filter_demo_silver(settings: Settings) -> None:

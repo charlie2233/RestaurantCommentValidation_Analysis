@@ -240,6 +240,33 @@ def _write_qsr50_reference_csv(path, *, include_shake_shack: bool = True) -> Non
     pd.DataFrame(rows).to_csv(path, index=False)
 
 
+def _write_sec_reference_csv(path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "brand_name": "Taco Bell",
+                "canonical_brand_name": "Taco Bell",
+                "source_type": "sec_filings",
+                "source_name": "Example 10-K",
+                "source_url_or_doc_id": "https://example.com/taco-bell-10k",
+                "as_of_date": "2024-12-31",
+                "method_reported_or_estimated": "reported",
+                "confidence_score": 0.99,
+                "notes": "Conflicting fixture row used to confirm the demo stays QSR50-only.",
+                "filing_type": "10-K",
+                "filing_date": "2025-02-20",
+                "us_store_count": 9999,
+                "systemwide_revenue_usd_billions": 99.9,
+                "revenue_segment_notes": "Conflicting test fixture.",
+                "currency": "USD",
+                "geography": "US",
+                "source_page": "Item 7",
+                "source_excerpt": "Intentionally conflicting fixture row.",
+            }
+        ]
+    ).to_csv(path, index=False)
+
+
 def _set_settings_env(monkeypatch: pytest.MonkeyPatch, settings) -> None:
     monkeypatch.setenv("QSR_DATA_RAW", str(settings.data_raw))
     monkeypatch.setenv("QSR_DATA_BRONZE", str(settings.data_bronze))
@@ -249,6 +276,27 @@ def _set_settings_env(monkeypatch: pytest.MonkeyPatch, settings) -> None:
     monkeypatch.setenv("QSR_REPORTS_DIR", str(settings.reports_dir))
     monkeypatch.setenv("QSR_STRATEGY_DIR", str(settings.strategy_dir))
     monkeypatch.setenv("QSR_ARTIFACTS_DIR", str(settings.artifacts_dir))
+
+
+def test_demo_happy_path_command_end_to_end_without_arguments(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = build_settings(tmp_path)
+    workbook_path = settings.data_raw / "demo_fixture.xlsx"
+    _write_demo_workbook(workbook_path)
+    _write_qsr50_reference_csv(settings.data_reference / "qsr50_reference.csv")
+    _set_settings_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["demo-happy-path"])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Five-brand happy-path demo complete" in result.stdout
+    assert (settings.reports_dir / "validation" / "core_scorecard.html").exists()
+    assert (settings.reports_dir / "reconciliation" / "brand_deltas.csv").exists()
+    assert (settings.reports_dir / "summary" / "top_risks.md").exists()
+    assert (settings.data_gold / "demo_gold.parquet").exists()
+    assert (settings.data_gold / "demo_syntheticness.parquet").exists()
 
 
 def test_demo_happy_path_command_end_to_end(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -319,6 +367,29 @@ def test_demo_happy_path_command_end_to_end(tmp_path, monkeypatch: pytest.Monkey
     assert "Publishability Risks" in top_risks_text
 
 
+def test_demo_happy_path_zero_arg_mode_fails_cleanly_when_workbook_discovery_is_ambiguous(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = build_settings(tmp_path)
+    workbook_path = settings.data_raw / "demo_fixture.xlsx"
+    second_workbook_path = settings.data_raw / "demo_fixture_copy.xlsx"
+    _write_demo_workbook(workbook_path)
+    _write_demo_workbook(second_workbook_path)
+    _write_qsr50_reference_csv(settings.data_reference / "qsr50_reference.csv")
+    _set_settings_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["demo-happy-path"])
+    normalized_stdout = " ".join(result.stdout.split())
+
+    assert result.exit_code != 0
+    assert "Happy-path demo failed" in normalized_stdout
+    assert "requires exactly one workbook under `data/raw/`" in normalized_stdout
+    assert "demo_fixture.xlsx" in normalized_stdout
+    assert "demo_fixture_copy.xlsx" in normalized_stdout
+    assert "Pass `--input <workbook>` explicitly" in normalized_stdout
+
+
 def test_demo_happy_path_fails_cleanly_when_qsr50_rows_are_missing(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -348,3 +419,39 @@ def test_demo_happy_path_fails_cleanly_when_qsr50_rows_are_missing(
     assert "requires QSR50 coverage for all" in result.stdout
     assert "five demo brands" in result.stdout
     assert "Shake Shack" in result.stdout
+
+
+def test_demo_happy_path_ignores_non_qsr50_reference_rows_in_same_directory(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = build_settings(tmp_path)
+    workbook_path = settings.data_raw / "demo_fixture.xlsx"
+    _write_demo_workbook(workbook_path)
+    _write_qsr50_reference_csv(settings.data_reference / "qsr50_reference.csv")
+    _write_sec_reference_csv(settings.data_reference / "sec_filings_reference.csv")
+    _set_settings_env(monkeypatch, settings)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "demo-happy-path",
+            "--input",
+            str(workbook_path),
+            "--reference-dir",
+            str(settings.data_reference),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+    deltas_frame = pd.read_csv(settings.reports_dir / "reconciliation" / "brand_deltas.csv")
+    assert set(deltas_frame["brand_name"]) == set(DEMO_BRANDS)
+    assert set(deltas_frame["source_type"]) == {"qsr50"}
+    assert set(deltas_frame["source_name"]) == {"QSR 50 2025"}
+
+    taco_bell_store_count = deltas_frame.loc[
+        deltas_frame["brand_name"].eq("Taco Bell") & deltas_frame["metric_name"].eq("store_count"),
+        "reference_value",
+    ]
+    assert taco_bell_store_count.tolist() == [7604.0]
