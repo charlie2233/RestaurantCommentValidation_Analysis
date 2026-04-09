@@ -1,14 +1,20 @@
 # 2026q2_pack Checklist
 
-- [ ] `queries.csv` contains only the current first-cycle reviewer batch, and any additional rows are copied from `working/suggested_queries.csv` only after explicit analyst review.
-- [ ] `judgments.csv` remains empty until real evidence review begins.
+- [ ] `queries.csv` contains the committed first-cycle batch of 16 retrieval-only queries, with any future additions reviewed explicitly before landing.
+- [ ] `judgments.csv` remains empty until real evidence review begins, and any draft reviewer files stay provisional until both reviewers finish.
 - [ ] Corpus was built from vetted Gold and provenance-aware local artifacts.
 - [ ] No raw workbook, Bronze, or Silver evidence is referenced.
 - [ ] `query_id` values are unique and reflect realistic analyst lookups.
-- [ ] Ambiguity and citation requirements are marked explicitly where needed.
+- [ ] Ambiguity, citation requirements, and filter-sensitive cases are marked explicitly where needed.
 - [ ] Reviewer files live under paths such as `reviewers/alice/judgments.csv`
       and `reviewers/bob/judgments.csv`, and they do not overwrite
       `judgments.csv`.
+- [ ] Reviewers label with `doc_id` or `chunk_id`, valid `relevance_label`
+      values (`highly_relevant`, `relevant`, `not_relevant`), an evidence-based
+      `rationale`, and `must_appear_in_top_k` only when a hard placement
+      requirement exists.
+- [ ] Reviewer files stay in `draft` / provisional state until each reviewer has
+      filled the exact query set and the disagreements have been adjudicated.
 - [ ] At least two reviewers participate before any pack is treated as truly adjudicated.
 - [ ] Reviewer conflicts were adjudicated before treating the benchmark as final.
 - [ ] Benchmark outputs are kept under `artifacts/rag/...`, not `reports/` or `strategy/`.

@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 
 from qsr_audit.config import get_settings
+from qsr_audit.credibility import score_credibility as score_credibility_pipeline
 from qsr_audit.demo import run_demo_happy_path as run_demo_happy_path_pipeline
 from qsr_audit.demo_showcase import package_demo_bundle as package_demo_bundle_pipeline
 from qsr_audit.forecasting import build_forecast_panel as build_forecast_panel_pipeline
@@ -838,6 +839,63 @@ def gate_gold_command() -> None:
     console.print(f"Blocked parquet: {run.artifacts.blocked_path}")
     console.print(f"Scorecard: {run.artifacts.scorecard_markdown_path}")
     console.print(f"Summary JSON: {run.artifacts.summary_json_path}")
+    console.print(f"Manifest: {manifest_path}")
+    console.print(f"Audit log: {audit_log_path}")
+
+
+@app.command("score-credibility")
+def score_credibility_command() -> None:
+    """Build a calibrated credibility rollup plus syntheticness benchmark artifacts without changing Gold gate publish status."""
+
+    settings = get_settings()
+    session = begin_command_audit("score-credibility")
+    input_paths = [
+        settings.data_gold / "gold_publish_decisions.parquet",
+        settings.data_gold / "syntheticness_signals.parquet",
+    ]
+    try:
+        run = score_credibility_pipeline(settings=settings)
+    except Exception as exc:
+        _record_command_failure(
+            settings=settings, session=session, input_paths=input_paths, exc=exc
+        )
+        raise
+
+    manifest_path, audit_log_path = _record_command_success(
+        settings=settings,
+        session=session,
+        input_paths=input_paths,
+        output_paths=[
+            run.artifacts.rollup_parquet_path,
+            run.artifacts.scorecard_html_path,
+            run.artifacts.method_markdown_path,
+            run.artifacts.benchmark_metrics_json_path,
+            run.artifacts.benchmark_summary_markdown_path,
+        ],
+        row_counts={
+            "credibility_rows": len(run.rollup),
+            "review_required_rows": int(run.rollup["review_required"].sum()),
+            "benchmark_cases": int(run.benchmark.metrics["case_count"]),
+        },
+        data_classification=DataClassification.INTERNAL,
+        intended_audience="analyst",
+        publish_status_scope="credibility_rollup",
+        warnings_count=int(run.rollup["review_required"].sum()),
+        errors_count=0,
+        upstream_artifact_references=[
+            latest_manifest_path(settings, "run-syntheticness"),
+            latest_manifest_path(settings, "reconcile"),
+            latest_manifest_path(settings, "gate-gold"),
+        ],
+    )
+    console.print("[bold green]Credibility scoring complete[/bold green]")
+    console.print(f"Rows scored: {len(run.rollup)}")
+    console.print(f"Review required rows: {int(run.rollup['review_required'].sum())}")
+    console.print(f"Rollup parquet: {run.artifacts.rollup_parquet_path}")
+    console.print(f"Scorecard HTML: {run.artifacts.scorecard_html_path}")
+    console.print(f"Method markdown: {run.artifacts.method_markdown_path}")
+    console.print(f"Benchmark metrics JSON: {run.artifacts.benchmark_metrics_json_path}")
+    console.print(f"Benchmark summary markdown: {run.artifacts.benchmark_summary_markdown_path}")
     console.print(f"Manifest: {manifest_path}")
     console.print(f"Audit log: {audit_log_path}")
 

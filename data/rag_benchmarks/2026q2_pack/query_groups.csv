@@ -11,3 +11,7 @@ starter-chipotle-store-count-gap,provenance_citation,Approved for the first anal
 starter-chick-fil-a-auv-gap,provenance_citation,Approved for the first analyst batch on 2026-04-07.
 starter-sweetgreen-extra-ai-row,cross_sheet_audit,Approved for the first analyst batch on 2026-04-07.
 starter-priority-evidence-gap-scan,cross_brand_comparison,Approved for the first analyst batch on 2026-04-07.
+starter-taco-bell-blocked-vs-publishable,publishability_boundary,Blocked-versus-publishable boundary review for the first real cycle.
+starter-five-brand-publishability-split,publishability_boundary,Cross-brand publishability review for the first real cycle.
+starter-nonblocked-auv-filter-scan,filter_sensitive_lookup,Filter-sensitive retrieval check for the first real cycle.
+starter-starbucks-source-kind-lookup,provenance_citation,Source-kind and provenance lookup for the first real cycle.

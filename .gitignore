@@ -56,3 +56,12 @@ strategy/*
 
 # Forecasting / experiment artifacts
 artifacts/*
+!artifacts/rag/
+artifacts/rag/*
+!artifacts/rag/benchmarks/
+artifacts/rag/benchmarks/*
+!artifacts/rag/benchmarks/2026q2_pack_cycle1_bm25/
+artifacts/rag/benchmarks/2026q2_pack_cycle1_bm25/*
+!artifacts/rag/benchmarks/2026q2_pack_cycle1_bm25/summary.md
+!artifacts/rag/benchmarks/2026q2_pack_cycle1_bm25/failure_cases.md
+!artifacts/rag/benchmarks/2026q2_pack_cycle1_bm25/per_query_results.parquet

@@ -513,7 +513,12 @@ def summarize_rag_benchmark_authoring(
     resolved_settings = settings or Settings()
     benchmark_dir_resolved = benchmark_dir.expanduser().resolve()
     pack = load_rag_benchmark_pack(benchmark_dir_resolved)
-    judgments, judgments_source = _load_authoring_summary_judgments(benchmark_dir_resolved)
+    judgments, judgments_source = _load_authoring_summary_judgments(
+        benchmark_dir_resolved,
+        expected_query_ids={
+            str(value).strip() for value in pack.queries["query_id"].tolist() if str(value).strip()
+        },
+    )
     query_groups = pack.query_groups.copy()
     if query_groups.empty:
         query_groups = pd.DataFrame(columns=QUERY_GROUP_COLUMNS)
@@ -564,6 +569,7 @@ def summarize_rag_benchmark_authoring(
         "benchmark_dir": str(benchmark_dir_resolved),
         "pack_status": pack.metadata.get("pack_status", "draft"),
         "judgments_source": judgments_source,
+        "judgments_review_state": _authoring_review_state(judgments_source),
         "query_count": int(len(query_frame.index)),
         "judged_query_count": int(query_frame["judged"].sum()) if not query_frame.empty else 0,
         "unjudged_queries": query_frame.loc[~query_frame["judged"], "query_id"].tolist()
@@ -862,7 +868,11 @@ def _compare_reviewer_rows(
     return conflicts, adjudicated_frame
 
 
-def _load_authoring_summary_judgments(benchmark_dir: Path) -> tuple[pd.DataFrame, str]:
+def _load_authoring_summary_judgments(
+    benchmark_dir: Path,
+    *,
+    expected_query_ids: set[str] | None = None,
+) -> tuple[pd.DataFrame, str]:
     adjudicated_path = benchmark_dir / ADJUDICATED_JUDGMENTS_FILENAME
     metadata = load_rag_benchmark_metadata(benchmark_dir)
     if adjudicated_path.exists() and metadata.get("pack_status") == "adjudicated":
@@ -872,19 +882,57 @@ def _load_authoring_summary_judgments(benchmark_dir: Path) -> tuple[pd.DataFrame
         )
     reviewer_paths = _discover_reviewer_judgments_paths(benchmark_dir)
     if reviewer_paths:
-        reviewer_frames = []
-        for reviewer_name in sorted(reviewer_paths):
-            frame = pd.read_csv(reviewer_paths[reviewer_name], dtype=str, keep_default_na=False)
-            if frame.empty:
+        reviewer_frames: list[pd.DataFrame] = []
+        reviewer_is_complete: list[bool] = []
+        for _reviewer_name in sorted(reviewer_paths):
+            frame = pd.read_csv(reviewer_paths[_reviewer_name], dtype=str, keep_default_na=False)
+            substantive_frame = _filter_substantive_authoring_judgments(frame)
+            if substantive_frame.empty:
+                reviewer_is_complete.append(False)
                 continue
-            reviewer_frames.append(frame)
+            reviewer_frames.append(substantive_frame)
+            if expected_query_ids is None:
+                reviewer_is_complete.append(False)
+            else:
+                reviewer_query_ids = {
+                    str(value).strip()
+                    for value in substantive_frame["query_id"].tolist()
+                    if str(value).strip()
+                }
+                reviewer_is_complete.append(reviewer_query_ids == expected_query_ids)
         if reviewer_frames:
-            return pd.concat(reviewer_frames, ignore_index=True), "reviewer_union"
+            judgments_source = (
+                "reviewer_union"
+                if expected_query_ids is not None and all(reviewer_is_complete)
+                else "reviewer_union_provisional"
+            )
+            return pd.concat(reviewer_frames, ignore_index=True), judgments_source
+        return pd.DataFrame(columns=JUDGMENT_COLUMNS), "reviewer_union_provisional"
     root_judgments_path = benchmark_dir / JUDGMENTS_FILENAME
     return (
         pd.read_csv(root_judgments_path, dtype=str, keep_default_na=False),
         JUDGMENTS_FILENAME,
     )
+
+
+def _filter_substantive_authoring_judgments(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+
+    working = frame.copy()
+    substantive_mask = (
+        working["query_id"].map(_has_text)
+        & (working["doc_id"].map(_has_text) | working["chunk_id"].map(_has_text))
+        & working["relevance_label"].map(
+            lambda value: _normalize_relevance_label(value) in ALLOWED_RELEVANCE_LABELS
+        )
+        & working["rationale"].map(_has_text)
+    )
+    return working.loc[substantive_mask].copy()
+
+
+def _has_text(value: Any) -> bool:
+    return bool(str(value).strip())
 
 
 def _build_authoring_coverage_rows(query_frame: pd.DataFrame) -> list[dict[str, Any]]:
@@ -1003,6 +1051,16 @@ def _top_counts(rows: list[dict[str, Any]], *, key: str) -> list[dict[str, Any]]
         {"value": value, "count": count}
         for value, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     ]
+
+
+def _authoring_review_state(judgments_source: str) -> str:
+    if judgments_source == ADJUDICATED_JUDGMENTS_FILENAME:
+        return "adjudicated"
+    if judgments_source == "reviewer_union":
+        return "reviewer-complete"
+    if judgments_source == "reviewer_union_provisional":
+        return "provisional"
+    return "unreviewed"
 
 
 def _ensure_non_analyst_artifact_root(*, output_root: Path, settings: Settings) -> None:
@@ -1128,6 +1186,7 @@ def _render_authoring_summary_markdown(summary: dict[str, Any]) -> str:
         f"- Benchmark dir: `{summary['benchmark_dir']}`",
         f"- Pack status: `{summary['pack_status']}`",
         f"- Judgments source: `{summary['judgments_source']}`",
+        f"- Review state: `{summary['judgments_review_state']}`",
         f"- Query count: `{summary['query_count']}`",
         f"- Judged query count: `{summary['judged_query_count']}`",
         "",

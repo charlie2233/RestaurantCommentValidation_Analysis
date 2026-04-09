@@ -62,6 +62,20 @@
   - `reports/audit/gold_publish_scorecard.md`
   - `reports/audit/gold_publish_scorecard.json`
 
+### `qsr-audit score-credibility`
+
+- Purpose: build a conservative row-level credibility rollup on top of Gold publish decisions, reconciliation context, provenance quality, invariant references, and syntheticness review pressure.
+- Guardrails:
+  - inherits `publish_status` from the Gold gate without relabeling rows
+  - treats syntheticness as review pressure, not as a standalone blocker
+  - keeps the syntheticness benchmark offline, local, and deterministic
+- Primary outputs:
+  - `data/gold/credibility_rollup.parquet`
+  - `reports/summary/credibility_scorecard.html`
+  - `reports/summary/credibility_method.md`
+  - `artifacts/syntheticness/benchmark_metrics.json`
+  - `artifacts/syntheticness/benchmark_summary.md`
+
 ### `qsr-audit preflight-release`
 
 - Purpose: verify that Gold publish artifacts, upstream manifests, and release runbooks are ready for external-facing handoff.
@@ -76,7 +90,7 @@
 
 ### `qsr-audit demo-happy-path`
 
-- Purpose: run the fixed five-brand slice from workbook ingest through validation, syntheticness, reconciliation, and Gold decision outputs.
+- Purpose: run the fixed five-brand slice from workbook ingest through validation, syntheticness, reconciliation, Gold decision outputs, and downstream reviewer-facing demo artifacts.
 - Scope:
   - covers only Starbucks, Taco Bell, Raising Cane's, Dutch Bros, and Shake Shack
   - generates a screenshot-friendly hub, but does not claim full-workbook readiness

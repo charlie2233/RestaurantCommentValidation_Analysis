@@ -16,6 +16,7 @@ from qsr_audit.rag.benchmark_pack import (
     ADJUDICATED_JUDGMENTS_FILENAME,
     DEFAULT_BENCHMARK_VALIDATION_SUBDIR,
     RagBenchmarkValidationRun,
+    load_rag_benchmark_pack,
     resolve_preferred_judgments_path,
     validate_rag_benchmark_pack,
 )
@@ -125,6 +126,7 @@ def eval_rag_retrieval(
     resolved_output_root = _resolve_output_root(
         output_root=output_root,
         settings=resolved_settings,
+        benchmark_dir=benchmark_dir,
     )
     resolved_output_root.mkdir(parents=True, exist_ok=True)
 
@@ -231,7 +233,7 @@ def eval_rag_retrieval(
                     reranker_name=None,
                 )
             )
-            if retrieval_metric["status"] != "ok":
+            if _is_failure_case_metric(retrieval_metric):
                 failure_cases.append(_failure_case_from_metric(retrieval_metric))
 
             if not reranker_name:
@@ -314,7 +316,7 @@ def eval_rag_retrieval(
                     reranker_name=reranker_name,
                 )
             )
-            if reranked_metric["status"] != "ok":
+            if _is_failure_case_metric(reranked_metric):
                 failure_cases.append(_failure_case_from_metric(reranked_metric))
 
         metrics_rows.append(
@@ -413,6 +415,7 @@ def eval_rag_retrieval(
         benchmark_dir=benchmark_dir,
         corpus_path=resolved_corpus_path,
         validation=validation,
+        output_root=resolved_output_root,
     )
     artifacts = _write_outputs(
         output_root=resolved_output_root,
@@ -587,10 +590,13 @@ def render_rag_benchmark_summary(summary: dict[str, Any]) -> str:
         "",
         "## Benchmark Status",
         "",
+        f"- Run ID: `{summary['benchmark_run_id']}`",
+        f"- Run status: `{summary['benchmark_run_status']}`",
         f"- Pack status: `{summary['benchmark_pack_status']}`",
         f"- Judgments source: `{summary['judgments_source']}`",
     ]
     if summary["benchmark_warnings"]:
+        lines.append("- Benchmark is provisional until the pack is adjudicated.")
         for warning in summary["benchmark_warnings"]:
             lines.append(f"- Warning: {warning}")
     else:
@@ -751,7 +757,15 @@ def render_rag_failure_cases_markdown(failure_cases: list[dict[str, Any]]) -> st
     return "\n".join(lines) + "\n"
 
 
-def _resolve_output_root(*, output_root: Path | None, settings: Settings) -> Path:
+def _resolve_output_root(
+    *,
+    output_root: Path | None,
+    settings: Settings,
+    benchmark_dir: Path | None,
+) -> Path:
+    if output_root is None and benchmark_dir is not None:
+        run_id = f"{benchmark_dir.expanduser().resolve().name}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+        output_root = settings.artifacts_dir / DEFAULT_BENCHMARKS_SUBDIR / run_id
     resolved = (
         (
             output_root
@@ -785,19 +799,21 @@ def _load_query_specs(
         raise ValueError("Use either `benchmark_dir` or `benchmark_path`, not both.")
     if benchmark_dir is not None:
         judgments_path = resolve_preferred_judgments_path(benchmark_dir)
+        benchmark_pack = load_rag_benchmark_pack(benchmark_dir, judgments_path=judgments_path)
         validation = validate_rag_benchmark_pack(
             benchmark_dir=benchmark_dir,
             corpus=corpus,
             settings=settings,
             output_root=output_root / DEFAULT_BENCHMARK_VALIDATION_SUBDIR.name,
             judgments_path=judgments_path,
+            require_judgments=not benchmark_pack.judgments.empty,
         )
         if not validation.passed:
             raise ValueError(
                 "Benchmark pack validation failed. Resolve the validation errors first. "
                 f"See {validation.artifacts.validation_markdown_path}."
             )
-        return validation.query_specs, validation
+        return _normalize_query_specs_for_retrieval_eval(validation.query_specs), validation
     if benchmark_path is None:
         return [
             _normalize_fixture_query_spec(corpus=corpus, query_spec=dict(query))
@@ -809,6 +825,33 @@ def _load_query_specs(
     return [
         _normalize_fixture_query_spec(corpus=corpus, query_spec=query) for query in raw_queries
     ], None
+
+
+def _normalize_query_specs_for_retrieval_eval(
+    query_specs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Ensure benchmark-directory query specs can flow through retrieval scoring."""
+
+    normalized_query_specs: list[dict[str, Any]] = []
+    for query_spec in query_specs:
+        normalized_query_specs.append(
+            {
+                **query_spec,
+                "relevant_chunk_ids": list(query_spec.get("relevant_chunk_ids") or []),
+                "relevant_doc_ids": list(query_spec.get("relevant_doc_ids") or []),
+                "relevance_by_chunk_id": dict(query_spec.get("relevance_by_chunk_id") or {}),
+                "relevance_by_doc_id": dict(query_spec.get("relevance_by_doc_id") or {}),
+                "rationale_by_chunk_id": dict(query_spec.get("rationale_by_chunk_id") or {}),
+                "rationale_by_doc_id": dict(query_spec.get("rationale_by_doc_id") or {}),
+                "must_appear_chunk_ids_in_top_k": dict(
+                    query_spec.get("must_appear_chunk_ids_in_top_k") or {}
+                ),
+                "must_appear_doc_ids_in_top_k": dict(
+                    query_spec.get("must_appear_doc_ids_in_top_k") or {}
+                ),
+            }
+        )
+    return normalized_query_specs
 
 
 def _normalize_fixture_query_spec(
@@ -1316,6 +1359,12 @@ def _failure_case_from_metric(metric: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_failure_case_metric(metric: dict[str, Any]) -> bool:
+    if metric["status"] == "ok":
+        return False
+    return int(metric.get("judged_relevant_count") or 0) > 0
+
+
 def _skipped_metrics_row(
     *,
     retriever_name: str,
@@ -1368,6 +1417,7 @@ def _build_summary(
     benchmark_dir: Path | None,
     corpus_path: Path,
     validation: RagBenchmarkValidationRun | None,
+    output_root: Path,
 ) -> dict[str, Any]:
     failure_category_counts: dict[str, int] = {}
     for failure in failure_cases:
@@ -1392,8 +1442,10 @@ def _build_summary(
     )
     judgments_source = validation.pack.judgments_path.name if validation is not None else "fixture"
     benchmark_warnings: list[str] = []
+    benchmark_run_status = "fixture" if validation is None else "adjudicated"
     if validation is not None:
         if judgments_source != ADJUDICATED_JUDGMENTS_FILENAME:
+            benchmark_run_status = "provisional"
             benchmark_warnings.append(
                 "This benchmark run is using draft or single-reviewer judgments instead of an adjudicated pack."
             )
@@ -1405,6 +1457,7 @@ def _build_summary(
                     "A provisional adjudicated_judgments.csv exists, but it is being ignored because the pack is not truly adjudicated."
                 )
         if benchmark_pack_status != "adjudicated":
+            benchmark_run_status = "provisional"
             benchmark_warnings.append(
                 f"Benchmark pack status is `{benchmark_pack_status}`; treat retrieval metrics as provisional."
             )
@@ -1415,6 +1468,7 @@ def _build_summary(
         "benchmark_validation_path": (
             str(validation.artifacts.validation_markdown_path) if validation is not None else None
         ),
+        "benchmark_run_id": output_root.name if benchmark_dir is not None else "fixture",
         "corpus_path": str(corpus_path),
         "corpus_chunk_count": int(len(corpus)),
         "corpus_document_count": int(corpus["doc_id"].nunique()) if not corpus.empty else 0,
@@ -1434,6 +1488,7 @@ def _build_summary(
         "rerank_results": rerank_delta.to_dict(orient="records"),
         "benchmark_pack_status": benchmark_pack_status,
         "judgments_source": judgments_source,
+        "benchmark_run_status": benchmark_run_status,
         "benchmark_warnings": benchmark_warnings,
     }
 
