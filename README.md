@@ -275,6 +275,9 @@ make quick
 # Safe local diagnostics
 make doctor
 
+# Installed package version and current git SHA
+make version
+
 # Latest GitHub Actions status for origin/main
 make ci-status
 

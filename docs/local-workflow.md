@@ -17,6 +17,7 @@ make lint
 make smoke-cli
 make quick
 make doctor
+make version
 make ci-status
 make test
 make verify
@@ -35,6 +36,9 @@ with repository artifact hygiene.
 
 Use `make doctor` when you need a safe local diagnostics snapshot: Python
 version, CLI help, current Git branch/SHA, and short repository status.
+
+Use `make version` when you need to confirm which installed `qsr-audit` package
+version is being exercised and which git commit produced the working tree.
 
 Use `make ci-status` to print the latest GitHub Actions run for `origin/main`.
 If GitHub CLI is not installed, the target exits successfully with a setup hint.

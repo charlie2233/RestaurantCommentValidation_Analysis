@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor ci-status verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -11,6 +11,7 @@ help:
 	@printf "  make smoke-cli          Run fast CLI help smoke checks\n"
 	@printf "  make quick              Run CLI smoke checks and repository hygiene\n"
 	@printf "  make doctor             Print safe local diagnostics without modifying files\n"
+	@printf "  make version            Print installed package version and git commit\n"
 	@printf "  make ci-status          Print latest GitHub Actions status for origin/main\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
@@ -60,6 +61,11 @@ doctor:
 	@git rev-parse --short HEAD
 	@printf "\nGit status:\n"
 	@git status --short --branch
+
+version:
+	@python -c "from importlib.metadata import version; print('qsr-audit package:', version('qsr-audit'))"
+	@printf "git commit: "
+	@git rev-parse --short HEAD
 
 ci-status:
 	@if ! command -v gh >/dev/null 2>&1; then \

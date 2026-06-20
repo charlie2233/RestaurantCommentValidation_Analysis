@@ -64,6 +64,16 @@ def test_doctor_target_prints_safe_diagnostics_only() -> None:
     assert qsr_commands == ["qsr-audit --help"]
 
 
+def test_version_target_prints_package_version_and_git_commit() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("version")]
+    recipe = "\n".join(commands)
+
+    assert "from importlib.metadata import version" in recipe
+    assert "version('qsr-audit')" in recipe
+    assert "git rev-parse --short HEAD" in commands
+    assert all(not command.startswith("qsr-audit ") for command in commands)
+
+
 def test_ci_status_target_uses_github_cli_with_soft_missing_gh_exit() -> None:
     commands = [command.removeprefix("@") for command in _make_target_commands("ci-status")]
     recipe = "\n".join(commands)
