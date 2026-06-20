@@ -116,6 +116,10 @@ Use `make list-reference-targets` when you need a quick map of manual reference
 coverage, standard reconciliation, QSR50 scale-up, primary-source scale-up, and
 the output locations those commands populate.
 
+Use `make list-strategy-targets` when you need to inspect Gold-derived strategy
+interpretation outputs and boundaries without generating playbooks or
+recommendation files.
+
 ## Main workflows
 
 ### Standard audit path

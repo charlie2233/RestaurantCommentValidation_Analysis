@@ -22,6 +22,7 @@ make list-governance-targets
 make list-forecasting-targets
 make list-rag-targets
 make list-report-targets
+make list-strategy-targets
 make lint
 make smoke-cli
 make quick
@@ -39,7 +40,8 @@ easier to remember.
 
 Use `make list-workflow-targets` when you want a compact index of the
 diagnostic, verification, data-layer, reference/reconciliation, governance,
-forecasting, RAG, report/demo, pipeline, and cleanup command-list helpers.
+forecasting, RAG, report/demo, strategy interpretation, pipeline, and cleanup
+command-list helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
@@ -67,6 +69,10 @@ building a corpus, evaluating retrieval, or generating answers.
 
 Use `make list-report-targets` to compare report and demo artifact-producing
 commands and their output locations without generating files.
+
+Use `make list-strategy-targets` to compare Gold-derived strategy interpretation
+commands and output locations without generating playbooks, recommendations, or
+machine-readable strategy files.
 
 Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
 iterating on command names, help text, or operator guidance.

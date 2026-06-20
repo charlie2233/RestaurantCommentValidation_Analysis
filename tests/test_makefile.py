@@ -152,6 +152,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
+    assert "make list-strategy-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
@@ -178,6 +179,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
+    assert "make list-strategy-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
     assert "make version" in recipe
@@ -335,6 +337,32 @@ def test_list_report_targets_prints_output_locations_only() -> None:
     assert "artifacts/release/" in recipe
     assert "make demo-bundle" in recipe
     assert "artifacts/demo_bundle/" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_strategy_targets_prints_interpretation_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-strategy-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Strategy interpretation target scopes" in recipe
+    assert "make run-report" in recipe
+    assert "Gold report path writes strategy interpretation outputs" in recipe
+    assert "strategy playbook" in recipe
+    assert "reports/strategy/strategy_playbook.md" in recipe
+    assert "reports/strategy/recommendations.json" in recipe
+    assert "machine outputs" in recipe
+    assert "strategy/recommendations.parquet" in recipe
+    assert "strategy/recommendations.json" in recipe
+    assert "Gold validated, reconciled, and publish-gated artifacts only" in recipe
+    assert "do not redefine metrics" in recipe
+    assert "blocked/advisory facts" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe

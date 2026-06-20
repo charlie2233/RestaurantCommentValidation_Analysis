@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-forecasting-targets list-rag-targets list-report-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -28,6 +28,7 @@ help:
 	@printf "  make list-forecasting-targets Print forecasting snapshot/baseline commands and artifacts\n"
 	@printf "  make list-rag-targets         Print retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
+	@printf "  make list-strategy-targets    Print strategy interpretation commands and output locations\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
@@ -103,6 +104,7 @@ list-workflow-targets:
 	@printf "  make list-forecasting-targets   Forecasting experiment command scopes\n"
 	@printf "  make list-rag-targets           Retrieval-only RAG command scopes\n"
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
+	@printf "  make list-strategy-targets      Strategy interpretation command scopes\n"
 	@printf "  make list-clean-targets         Cleanup commands\n"
 
 list-diagnostic-targets:
@@ -119,6 +121,7 @@ list-diagnostic-targets:
 	@printf "  make list-forecasting-targets Forecast snapshots, panels, baselines, and artifacts\n"
 	@printf "  make list-rag-targets         Retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
+	@printf "  make list-strategy-targets    Strategy interpretation commands and output locations\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
 	@printf "  make version            Installed package version and git commit\n"
@@ -244,6 +247,15 @@ list-report-targets:
 	@printf "  make run-report         Writes audit reports under reports/ and strategy/\n"
 	@printf "  make run-full-audit     Produces data/gold/, artifacts/release/, reports/, and strategy/\n"
 	@printf "  make demo-bundle        Writes shareable demo bundle under artifacts/demo_bundle/\n"
+
+list-strategy-targets:
+	@printf "Strategy interpretation target scopes\n"
+	@printf "\n"
+	@printf "  make run-report         Gold report path writes strategy interpretation outputs\n"
+	@printf "  strategy playbook       reports/strategy/strategy_playbook.md plus reports/strategy/recommendations.json\n"
+	@printf "  machine outputs         strategy/recommendations.parquet and strategy/recommendations.json\n"
+	@printf "  source boundary         Consumes Gold validated, reconciled, and publish-gated artifacts only\n"
+	@printf "  interpretation boundary Strategy outputs do not redefine metrics or promote blocked/advisory facts\n"
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
