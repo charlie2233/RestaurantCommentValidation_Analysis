@@ -79,9 +79,14 @@ generation and release preflight before report generation.
 ## Cleanup
 
 ```bash
+make clean-build
 make clean-generated
 make clean-caches
 ```
+
+Use `make clean-build` when you only want to remove Python packaging outputs
+(`dist/`, `build/`, and `*.egg-info`) without touching generated data, reports,
+or strategy artifacts.
 
 ## Optional offline experimentation loop
 

@@ -85,3 +85,16 @@ def test_ci_status_target_uses_github_cli_with_soft_missing_gh_exit() -> None:
     assert "gh run list" in recipe
     assert '--branch "$$branch"' in recipe
     assert all("qsr-audit " not in command for command in commands)
+
+
+def test_clean_build_target_removes_only_packaging_outputs() -> None:
+    commands = _make_target_commands("clean-build")
+    recipe = "\n".join(commands)
+
+    assert "rm -rf dist build" in commands
+    assert "-name '*.egg-info'" in recipe
+    assert "./.venv" in recipe
+    assert "./.git" in recipe
+    assert "data/" not in recipe
+    assert "reports" not in recipe
+    assert "strategy" not in recipe
