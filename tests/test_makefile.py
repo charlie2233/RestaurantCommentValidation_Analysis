@@ -44,3 +44,15 @@ def test_quick_target_runs_cli_smoke_and_hygiene_checks() -> None:
 
     assert commands == ["$(MAKE) smoke-cli", "$(MAKE) check-hygiene"]
     assert all(not command.startswith("qsr-audit ") for command in commands)
+
+
+def test_doctor_target_prints_safe_diagnostics_only() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("doctor")]
+
+    assert "python --version" in commands
+    assert "qsr-audit --help" in commands
+    assert "git branch --show-current" in commands
+    assert "git rev-parse --short HEAD" in commands
+    assert "git status --short --branch" in commands
+    qsr_commands = [command for command in commands if command.startswith("qsr-audit ")]
+    assert qsr_commands == ["qsr-audit --help"]

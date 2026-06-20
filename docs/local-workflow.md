@@ -15,6 +15,7 @@ make help
 make lint
 make smoke-cli
 make quick
+make doctor
 make test
 make verify
 make build-package
@@ -26,6 +27,9 @@ iterating on command names, help text, or operator guidance.
 
 Use `make quick` for a faster pre-push check that combines CLI smoke coverage
 with repository artifact hygiene.
+
+Use `make doctor` when you need a safe local diagnostics snapshot: Python
+version, CLI help, current Git branch/SHA, and short repository status.
 
 Use `make verify` before pushing broad or release-relevant changes. It runs the
 full local gate: pre-commit hooks, coverage-enforced tests, repository hygiene,

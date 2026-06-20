@@ -271,6 +271,9 @@ make smoke-cli
 # Fast CLI smoke + repo hygiene check
 make quick
 
+# Safe local diagnostics
+make doctor
+
 # Full verification gate
 make verify
 

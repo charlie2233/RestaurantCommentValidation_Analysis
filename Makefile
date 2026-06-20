@@ -1,4 +1,4 @@
-.PHONY: help setup lint test smoke-cli quick verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help setup lint test smoke-cli quick doctor verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -9,6 +9,7 @@ help:
 	@printf "  make test               Run the pytest suite\n"
 	@printf "  make smoke-cli          Run fast CLI help smoke checks\n"
 	@printf "  make quick              Run CLI smoke checks and repository hygiene\n"
+	@printf "  make doctor             Print safe local diagnostics without modifying files\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
@@ -42,6 +43,18 @@ smoke-cli:
 quick:
 	$(MAKE) smoke-cli
 	$(MAKE) check-hygiene
+
+doctor:
+	@printf "Python:\n"
+	@python --version
+	@printf "\nqsr-audit CLI help:\n"
+	@qsr-audit --help
+	@printf "\nGit branch:\n"
+	@git branch --show-current
+	@printf "\nGit commit:\n"
+	@git rev-parse --short HEAD
+	@printf "\nGit status:\n"
+	@git status --short --branch
 
 verify:
 	pre-commit run --all-files
