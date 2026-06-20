@@ -48,6 +48,10 @@ The core workflow is implemented and in active analyst use:
 The current bottleneck is evidence collection and analyst review, not missing
 framework code.
 
+Maturity note: this is an evidence-collection MVP. The framework is ready for
+controlled analyst cycles, but external-facing claims still depend on reviewed
+Gold outputs and provenance-backed reference evidence.
+
 ## Bronze / Silver / Gold flow
 
 ```
