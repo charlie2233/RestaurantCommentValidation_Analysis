@@ -264,6 +264,7 @@ make list-diagnostic-targets
 make list-verification-targets
 make list-data-targets
 make list-governance-targets
+make list-rag-targets
 make list-report-targets
 
 # Lint

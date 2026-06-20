@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-governance-targets list-report-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-governance-targets list-rag-targets list-report-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -24,6 +24,7 @@ help:
 	@printf "  make list-pipeline-targets    Print pipeline commands and scope notes\n"
 	@printf "  make list-data-targets        Print data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-governance-targets  Print Gold/release governance commands and artifacts\n"
+	@printf "  make list-rag-targets         Print retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
@@ -96,6 +97,7 @@ list-workflow-targets:
 	@printf "  make list-pipeline-targets      Pipeline shortcut commands\n"
 	@printf "  make list-data-targets          Data-layer command scopes\n"
 	@printf "  make list-governance-targets    Gold/release governance command scopes\n"
+	@printf "  make list-rag-targets           Retrieval-only RAG command scopes\n"
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
 	@printf "  make list-clean-targets         Cleanup commands\n"
 
@@ -109,6 +111,7 @@ list-diagnostic-targets:
 	@printf "  make list-pipeline-targets    Pipeline shortcut commands and scope notes\n"
 	@printf "  make list-data-targets        Data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-governance-targets  Gold gate, release preflight, and lineage scopes\n"
+	@printf "  make list-rag-targets         Retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
@@ -200,6 +203,16 @@ list-governance-targets:
 	@printf "  preflight-release CLI   Writes artifacts/release/preflight_summary.json and .md readiness checks\n"
 	@printf "  manifest/audit logs     Lineage records live under artifacts/manifests/ and artifacts/audit_logs/\n"
 	@printf "  publishability reports  Gold scorecards live under reports/audit/gold_publish_scorecard.md and .json\n"
+
+list-rag-targets:
+	@printf "Retrieval-only RAG target scopes\n"
+	@printf "\n"
+	@printf "  build-rag-corpus CLI    Vetted Gold/provenance artifacts -> artifacts/rag/corpus/\n"
+	@printf "  init/seed/bootstrap CLI Benchmark packs and suggestions under data/rag_benchmarks/<pack>/\n"
+	@printf "  validate/reviewer CLI   Validation reports under artifacts/rag/benchmarks/validation/\n"
+	@printf "  adjudication CLI        Reviewer conflicts under artifacts/rag/benchmarks/adjudication/\n"
+	@printf "  eval/triage CLI         Metrics, per-query rows, and failure triage under artifacts/rag/benchmarks/\n"
+	@printf "  search/inspect CLI      Retrieved chunks, metadata, and diagnostics only; no answer generation\n"
 
 list-report-targets:
 	@printf "Report and demo artifact targets\n"

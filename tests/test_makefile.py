@@ -148,6 +148,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
@@ -171,6 +172,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
@@ -227,6 +229,31 @@ def test_list_governance_targets_prints_release_gate_scopes_only() -> None:
     assert "artifacts/audit_logs/" in recipe
     assert "publishability reports" in recipe
     assert "reports/audit/gold_publish_scorecard.md" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_rag_targets_prints_retrieval_only_scopes_only() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("list-rag-targets")]
+    recipe = "\n".join(commands)
+
+    assert "Retrieval-only RAG target scopes" in recipe
+    assert "build-rag-corpus CLI" in recipe
+    assert "artifacts/rag/corpus/" in recipe
+    assert "init/seed/bootstrap CLI" in recipe
+    assert "data/rag_benchmarks/<pack>/" in recipe
+    assert "validate/reviewer CLI" in recipe
+    assert "artifacts/rag/benchmarks/validation/" in recipe
+    assert "adjudication CLI" in recipe
+    assert "artifacts/rag/benchmarks/adjudication/" in recipe
+    assert "eval/triage CLI" in recipe
+    assert "artifacts/rag/benchmarks/" in recipe
+    assert "search/inspect CLI" in recipe
+    assert "no answer generation" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe
