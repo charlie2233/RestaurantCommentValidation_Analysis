@@ -149,6 +149,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-data-targets" in recipe
     assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-release-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
@@ -177,6 +178,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-data-targets" in recipe
     assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-release-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
@@ -265,6 +267,38 @@ def test_list_governance_targets_prints_release_gate_scopes_only() -> None:
     assert "artifacts/audit_logs/" in recipe
     assert "publishability reports" in recipe
     assert "reports/audit/gold_publish_scorecard.md" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_release_targets_prints_preflight_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-release-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Release and preflight target scopes" in recipe
+    assert "make run-full-audit" in recipe
+    assert "gate-gold" in recipe
+    assert "preflight-release" in recipe
+    assert "required Gold inputs" in recipe
+    assert "data/gold/gold_publish_decisions.parquet" in recipe
+    assert "data/gold/publishable_kpis.parquet" in recipe
+    assert "data/gold/blocked_kpis.parquet" in recipe
+    assert "required manifests" in recipe
+    assert "validate-workbook" in recipe
+    assert "run-syntheticness" in recipe
+    assert "reconcile" in recipe
+    assert "artifacts/manifests/<command>/latest.json" in recipe
+    assert "preflight outputs" in recipe
+    assert "artifacts/release/preflight_summary.json" in recipe
+    assert "artifacts/release/preflight_summary.md" in recipe
+    assert "release boundary" in recipe
+    assert "advisory/blocked rows stay out of publishable exports" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe

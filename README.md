@@ -123,6 +123,10 @@ recommendation files.
 Use `make list-demo-targets` when you need to inspect the five-brand demo inputs,
 commands, and artifact locations without running or packaging the demo.
 
+Use `make list-release-targets` when you need to inspect release preflight
+requirements, required Gold artifacts, lineage manifests, and output locations
+without running release checks.
+
 ## Main workflows
 
 ### Standard audit path

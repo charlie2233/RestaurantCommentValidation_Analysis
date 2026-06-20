@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-release-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -25,6 +25,7 @@ help:
 	@printf "  make list-data-targets        Print data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-reference-targets   Print reference/reconciliation commands and artifact locations\n"
 	@printf "  make list-governance-targets  Print Gold/release governance commands and artifacts\n"
+	@printf "  make list-release-targets     Print release/preflight inputs, manifests, and outputs\n"
 	@printf "  make list-forecasting-targets Print forecasting snapshot/baseline commands and artifacts\n"
 	@printf "  make list-rag-targets         Print retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
@@ -102,6 +103,7 @@ list-workflow-targets:
 	@printf "  make list-data-targets          Data-layer command scopes\n"
 	@printf "  make list-reference-targets     Reference/reconciliation command scopes\n"
 	@printf "  make list-governance-targets    Gold/release governance command scopes\n"
+	@printf "  make list-release-targets       Release/preflight command scopes\n"
 	@printf "  make list-forecasting-targets   Forecasting experiment command scopes\n"
 	@printf "  make list-rag-targets           Retrieval-only RAG command scopes\n"
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
@@ -120,6 +122,7 @@ list-diagnostic-targets:
 	@printf "  make list-data-targets        Data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-reference-targets   Reference validation, reconciliation, and coverage scopes\n"
 	@printf "  make list-governance-targets  Gold gate, release preflight, and lineage scopes\n"
+	@printf "  make list-release-targets     Release/preflight inputs, manifests, and output locations\n"
 	@printf "  make list-forecasting-targets Forecast snapshots, panels, baselines, and artifacts\n"
 	@printf "  make list-rag-targets         Retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
@@ -224,6 +227,15 @@ list-governance-targets:
 	@printf "  preflight-release CLI   Writes artifacts/release/preflight_summary.json and .md readiness checks\n"
 	@printf "  manifest/audit logs     Lineage records live under artifacts/manifests/ and artifacts/audit_logs/\n"
 	@printf "  publishability reports  Gold scorecards live under reports/audit/gold_publish_scorecard.md and .json\n"
+
+list-release-targets:
+	@printf "Release and preflight target scopes\n"
+	@printf "\n"
+	@printf "  make run-full-audit     Standard path reaches gate-gold and preflight-release before reports\n"
+	@printf "  required Gold inputs    data/gold/gold_publish_decisions.parquet, data/gold/publishable_kpis.parquet, data/gold/blocked_kpis.parquet\n"
+	@printf "  required manifests      validate-workbook, run-syntheticness, reconcile, and gate-gold under artifacts/manifests/<command>/latest.json\n"
+	@printf "  preflight outputs       artifacts/release/preflight_summary.json and artifacts/release/preflight_summary.md\n"
+	@printf "  release boundary        publishable_kpis.parquet is release-safe; advisory/blocked rows stay out of publishable exports\n"
 
 list-forecasting-targets:
 	@printf "Forecasting experiment target scopes\n"
