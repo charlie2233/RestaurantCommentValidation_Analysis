@@ -93,6 +93,9 @@ Use `make clean-test` when you only want to remove pytest and coverage outputs
 (`.pytest_cache/`, `.coverage`, `coverage.xml`, and `htmlcov/`) without touching
 build outputs or generated data.
 
+`make clean-caches` composes `clean-test` and `clean-build`, then removes Python
+bytecode caches and `.ruff_cache`.
+
 ## Optional offline experimentation loop
 
 Research-only model work should stay separate from the supported pipeline:

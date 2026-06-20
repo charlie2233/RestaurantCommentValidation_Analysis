@@ -111,3 +111,14 @@ def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
     assert "data/" not in recipe
     assert "reports" not in recipe
     assert "strategy" not in recipe
+
+
+def test_clean_caches_composes_narrow_cleanup_targets() -> None:
+    commands = _make_target_commands("clean-caches")
+
+    assert commands == [
+        "$(MAKE) clean-test",
+        "$(MAKE) clean-build",
+        "find . -type d -name '__pycache__' -prune -exec rm -rf {} +",
+        "rm -rf .ruff_cache",
+    ]

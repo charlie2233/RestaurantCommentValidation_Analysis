@@ -107,8 +107,10 @@ clean-test:
 	rm -rf .pytest_cache .coverage coverage.xml htmlcov
 
 clean-caches:
+	$(MAKE) clean-test
+	$(MAKE) clean-build
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
-	rm -rf .pytest_cache .ruff_cache htmlcov .coverage coverage.xml dist build
+	rm -rf .ruff_cache
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
