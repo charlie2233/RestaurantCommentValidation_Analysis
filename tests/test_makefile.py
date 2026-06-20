@@ -135,6 +135,25 @@ def test_list_pipeline_targets_prints_pipeline_scope_notes_only() -> None:
     assert all("$(MAKE)" not in command for command in commands)
 
 
+def test_list_workflow_targets_prints_command_list_index_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-workflow-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Workflow target lists" in recipe
+    assert "make list-diagnostic-targets" in recipe
+    assert "make list-verification-targets" in recipe
+    assert "make list-pipeline-targets" in recipe
+    assert "make list-clean-targets" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
 def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     commands = [
         command.removeprefix("@") for command in _make_target_commands("list-diagnostic-targets")
@@ -144,6 +163,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "Diagnostic and discovery targets" in recipe
     assert "make help" in recipe
     assert "make show-targets" in recipe
+    assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe

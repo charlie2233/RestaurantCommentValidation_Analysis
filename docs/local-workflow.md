@@ -13,6 +13,7 @@ make setup
 ```bash
 make help
 make show-targets
+make list-workflow-targets
 make list-diagnostic-targets
 make list-verification-targets
 make lint
@@ -29,6 +30,9 @@ make check-hygiene
 
 `make show-targets` is an alias for `make help`; use whichever wording is
 easier to remember.
+
+Use `make list-workflow-targets` when you want a compact index of the
+diagnostic, verification, pipeline, and cleanup command-list helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
