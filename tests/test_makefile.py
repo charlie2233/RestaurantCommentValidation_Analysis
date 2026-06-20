@@ -32,6 +32,12 @@ def test_run_full_audit_includes_release_gate_before_reports() -> None:
     )
 
 
+def test_show_targets_aliases_help() -> None:
+    commands = _make_target_commands("show-targets")
+
+    assert commands == ["$(MAKE) help"]
+
+
 def test_smoke_cli_target_runs_help_only_cli_regressions() -> None:
     commands = _make_target_commands("smoke-cli")
 

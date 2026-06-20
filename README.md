@@ -258,6 +258,7 @@ Settings are read from environment variables (prefix `QSR_`) or a `.env` file:
 ```bash
 # List supported commands
 make help
+make show-targets
 
 # Lint
 make lint

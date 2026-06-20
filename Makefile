@@ -1,9 +1,10 @@
-.PHONY: help setup lint test smoke-cli quick doctor ci-status verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor ci-status verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
 	@printf "\n"
 	@printf "Setup and verification:\n"
+	@printf "  make show-targets       Alias for make help\n"
 	@printf "  make setup              Install editable dev dependencies and pre-commit hooks\n"
 	@printf "  make lint               Run pre-commit hooks on all files\n"
 	@printf "  make test               Run the pytest suite\n"
@@ -27,6 +28,9 @@ help:
 	@printf "Cleanup:\n"
 	@printf "  make clean-generated    Remove ignored generated data/report artifacts\n"
 	@printf "  make clean-caches       Remove Python/test/build caches\n"
+
+show-targets:
+	$(MAKE) help
 
 setup:
 	pip install -e ".[dev]"

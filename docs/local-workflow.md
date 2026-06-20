@@ -12,6 +12,7 @@ make setup
 
 ```bash
 make help
+make show-targets
 make lint
 make smoke-cli
 make quick
@@ -22,6 +23,9 @@ make verify
 make build-package
 make check-hygiene
 ```
+
+`make show-targets` is an alias for `make help`; use whichever wording is
+easier to remember.
 
 Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
 iterating on command names, help text, or operator guidance.
