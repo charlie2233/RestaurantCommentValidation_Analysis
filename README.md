@@ -259,6 +259,7 @@ Settings are read from environment variables (prefix `QSR_`) or a `.env` file:
 # List supported commands
 make help
 make show-targets
+make list-diagnostic-targets
 
 # Lint
 make lint

@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-diagnostic-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -13,12 +13,13 @@ help:
 	@printf "  make doctor             Print safe local diagnostics without modifying files\n"
 	@printf "  make version            Print installed package version and git commit\n"
 	@printf "  make ci-status          Print latest GitHub Actions status for origin/main\n"
+	@printf "  make list-diagnostic-targets  Print diagnostic/discovery commands and scope notes\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
 	@printf "\n"
 	@printf "Pipeline shortcuts:\n"
-	@printf "  make list-pipeline-targets Print pipeline commands and scope notes\n"
+	@printf "  make list-pipeline-targets    Print pipeline commands and scope notes\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
@@ -28,7 +29,7 @@ help:
 	@printf "  make demo-bundle        Package the demo showcase bundle\n"
 	@printf "\n"
 	@printf "Cleanup:\n"
-	@printf "  make list-clean-targets Print cleanup commands and scope notes\n"
+	@printf "  make list-clean-targets       Print cleanup commands and scope notes\n"
 	@printf "  make clean-generated    Remove ignored generated data/report artifacts\n"
 	@printf "  make clean-build        Remove package build outputs only\n"
 	@printf "  make clean-test         Remove pytest and coverage artifacts only\n"
@@ -81,6 +82,17 @@ ci-status:
 		printf "Latest GitHub Actions run for origin/%s:\n" "$$branch"; \
 		gh run list --branch "$$branch" --limit 1; \
 	fi
+
+list-diagnostic-targets:
+	@printf "Diagnostic and discovery targets\n"
+	@printf "\n"
+	@printf "  make help               Full Make command index\n"
+	@printf "  make show-targets       Alias for make help\n"
+	@printf "  make list-pipeline-targets    Pipeline shortcut commands and scope notes\n"
+	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
+	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
+	@printf "  make version            Installed package version and git commit\n"
+	@printf "  make ci-status          Latest GitHub Actions status when gh is installed\n"
 
 verify:
 	pre-commit run --all-files

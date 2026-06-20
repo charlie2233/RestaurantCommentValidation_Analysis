@@ -135,6 +135,26 @@ def test_list_pipeline_targets_prints_pipeline_scope_notes_only() -> None:
     assert all("$(MAKE)" not in command for command in commands)
 
 
+def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-diagnostic-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Diagnostic and discovery targets" in recipe
+    assert "make help" in recipe
+    assert "make show-targets" in recipe
+    assert "make list-pipeline-targets" in recipe
+    assert "make list-clean-targets" in recipe
+    assert "make doctor" in recipe
+    assert "make version" in recipe
+    assert "make ci-status" in recipe
+    assert "pytest" not in recipe
+    assert "rm -rf" not in recipe
+    assert "qsr-audit " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
 def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
     commands = _make_target_commands("clean-test")
     recipe = "\n".join(commands)
