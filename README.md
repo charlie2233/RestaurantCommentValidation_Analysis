@@ -268,6 +268,9 @@ make test
 # Fast CLI help smoke checks
 make smoke-cli
 
+# Fast CLI smoke + repo hygiene check
+make quick
+
 # Full verification gate
 make verify
 

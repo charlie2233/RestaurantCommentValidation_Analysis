@@ -1,4 +1,4 @@
-.PHONY: help setup lint test smoke-cli verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help setup lint test smoke-cli quick verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -8,6 +8,7 @@ help:
 	@printf "  make lint               Run pre-commit hooks on all files\n"
 	@printf "  make test               Run the pytest suite\n"
 	@printf "  make smoke-cli          Run fast CLI help smoke checks\n"
+	@printf "  make quick              Run CLI smoke checks and repository hygiene\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
@@ -37,6 +38,10 @@ test:
 
 smoke-cli:
 	pytest tests/test_cli_help.py
+
+quick:
+	$(MAKE) smoke-cli
+	$(MAKE) check-hygiene
 
 verify:
 	pre-commit run --all-files

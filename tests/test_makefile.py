@@ -37,3 +37,10 @@ def test_smoke_cli_target_runs_help_only_cli_regressions() -> None:
 
     assert commands == ["pytest tests/test_cli_help.py"]
     assert all(not command.startswith("qsr-audit ") for command in commands)
+
+
+def test_quick_target_runs_cli_smoke_and_hygiene_checks() -> None:
+    commands = _make_target_commands("quick")
+
+    assert commands == ["$(MAKE) smoke-cli", "$(MAKE) check-hygiene"]
+    assert all(not command.startswith("qsr-audit ") for command in commands)
