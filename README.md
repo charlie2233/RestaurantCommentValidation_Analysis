@@ -260,6 +260,7 @@ Settings are read from environment variables (prefix `QSR_`) or a `.env` file:
 make help
 make show-targets
 make list-diagnostic-targets
+make list-verification-targets
 
 # Lint
 make lint

@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-diagnostic-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -14,6 +14,7 @@ help:
 	@printf "  make version            Print installed package version and git commit\n"
 	@printf "  make ci-status          Print latest GitHub Actions status for origin/main\n"
 	@printf "  make list-diagnostic-targets  Print diagnostic/discovery commands and scope notes\n"
+	@printf "  make list-verification-targets  Print verification/check commands and scope notes\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
@@ -88,11 +89,23 @@ list-diagnostic-targets:
 	@printf "\n"
 	@printf "  make help               Full Make command index\n"
 	@printf "  make show-targets       Alias for make help\n"
+	@printf "  make list-verification-targets  Verification/check commands and scope notes\n"
 	@printf "  make list-pipeline-targets    Pipeline shortcut commands and scope notes\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
 	@printf "  make version            Installed package version and git commit\n"
 	@printf "  make ci-status          Latest GitHub Actions status when gh is installed\n"
+
+list-verification-targets:
+	@printf "Verification and check targets\n"
+	@printf "\n"
+	@printf "  make lint               Pre-commit hooks across the repository\n"
+	@printf "  make test               Full test suite without coverage gate\n"
+	@printf "  make smoke-cli          Fast CLI help smoke checks\n"
+	@printf "  make quick              CLI smoke checks plus repository hygiene\n"
+	@printf "  make verify             Full local gate: hooks, coverage, hygiene, package build\n"
+	@printf "  make check-hygiene      Repository artifact hygiene checks\n"
+	@printf "  make build-package      Source distribution and wheel build\n"
 
 verify:
 	pre-commit run --all-files

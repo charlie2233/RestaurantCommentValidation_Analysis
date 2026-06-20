@@ -14,6 +14,7 @@ make setup
 make help
 make show-targets
 make list-diagnostic-targets
+make list-verification-targets
 make lint
 make smoke-cli
 make quick
@@ -31,6 +32,9 @@ easier to remember.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
+
+Use `make list-verification-targets` to compare verification and check helpers
+without running hooks, tests, hygiene checks, or package builds.
 
 Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
 iterating on command names, help text, or operator guidance.

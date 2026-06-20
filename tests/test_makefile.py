@@ -155,6 +155,27 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert all("$(MAKE)" not in command for command in commands)
 
 
+def test_list_verification_targets_prints_check_scope_notes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-verification-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Verification and check targets" in recipe
+    assert "make lint" in recipe
+    assert "make test" in recipe
+    assert "make smoke-cli" in recipe
+    assert "make quick" in recipe
+    assert "make verify" in recipe
+    assert "make check-hygiene" in recipe
+    assert "make build-package" in recipe
+    assert "pre-commit run" not in recipe
+    assert "pytest " not in recipe
+    assert "python scripts/check_repo_hygiene.py" not in recipe
+    assert "python -m build" not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
 def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
     commands = _make_target_commands("clean-test")
     recipe = "\n".join(commands)
