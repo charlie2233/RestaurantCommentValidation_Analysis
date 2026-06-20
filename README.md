@@ -112,6 +112,10 @@ make run-report
 make run-full-audit
 ```
 
+Use `make list-reference-targets` when you need a quick map of manual reference
+coverage, standard reconciliation, QSR50 scale-up, primary-source scale-up, and
+the output locations those commands populate.
+
 ## Main workflows
 
 ### Standard audit path

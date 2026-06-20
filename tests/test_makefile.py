@@ -147,6 +147,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-verification-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
+    assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
@@ -172,6 +173,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
+    assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
@@ -203,6 +205,34 @@ def test_list_data_targets_prints_data_layer_scopes_only() -> None:
     assert "data/reference/" in recipe
     assert "data/gold/ reconciled metrics" in recipe
     assert "make run-full-audit" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_reference_targets_prints_reference_artifact_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-reference-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Reference and reconciliation target scopes" in recipe
+    assert "audit-reference CLI" in recipe
+    assert "data/reference/" in recipe
+    assert "data/gold/reference_coverage.parquet" in recipe
+    assert "reports/reference/reference_coverage.md" in recipe
+    assert "make run-reconcile" in recipe
+    assert "data/gold/reconciled_core_metrics.parquet" in recipe
+    assert "reconcile-qsr50 CLI" in recipe
+    assert "QSR50 coverage and deltas" in recipe
+    assert "reconcile-primary-source CLI" in recipe
+    assert "Primary-source coverage, deltas, and candidates" in recipe
+    assert "reports/reconciliation/" in recipe
+    assert "coverage/gap artifacts" in recipe
+    assert "unresolved reference-gap reports" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe
