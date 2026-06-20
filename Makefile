@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-report-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-report-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -22,6 +22,7 @@ help:
 	@printf "\n"
 	@printf "Pipeline shortcuts:\n"
 	@printf "  make list-pipeline-targets    Print pipeline commands and scope notes\n"
+	@printf "  make list-data-targets        Print data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
@@ -92,6 +93,7 @@ list-workflow-targets:
 	@printf "  make list-diagnostic-targets    Diagnostic and discovery commands\n"
 	@printf "  make list-verification-targets  Verification and check commands\n"
 	@printf "  make list-pipeline-targets      Pipeline shortcut commands\n"
+	@printf "  make list-data-targets          Data-layer command scopes\n"
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
 	@printf "  make list-clean-targets         Cleanup commands\n"
 
@@ -103,6 +105,7 @@ list-diagnostic-targets:
 	@printf "  make list-workflow-targets  Workflow command-list index\n"
 	@printf "  make list-verification-targets  Verification/check commands and scope notes\n"
 	@printf "  make list-pipeline-targets    Pipeline shortcut commands and scope notes\n"
+	@printf "  make list-data-targets        Data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
@@ -176,6 +179,15 @@ list-pipeline-targets:
 	@printf "  make run-report         Report generation from Gold outputs\n"
 	@printf "  make run-full-audit     Full standard audit path through release preflight\n"
 	@printf "  make demo-bundle        Package the five-brand demo showcase bundle\n"
+
+list-data-targets:
+	@printf "Data-layer target scopes\n"
+	@printf "\n"
+	@printf "  make run-ingest         data/raw/source_workbook.xlsx -> data/bronze/ and data/silver/\n"
+	@printf "  make run-validate       data/silver/ -> data/gold/ validation flags\n"
+	@printf "  make run-syntheticness  data/silver/core_brand_metrics.parquet -> syntheticness diagnostics\n"
+	@printf "  make run-reconcile      data/silver/ + data/reference/ -> data/gold/ reconciled metrics\n"
+	@printf "  make run-full-audit     Raw workbook -> Bronze, Silver, Gold, and release/report artifacts\n"
 
 list-report-targets:
 	@printf "Report and demo artifact targets\n"

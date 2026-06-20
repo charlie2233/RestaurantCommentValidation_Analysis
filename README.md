@@ -262,6 +262,7 @@ make show-targets
 make list-workflow-targets
 make list-diagnostic-targets
 make list-verification-targets
+make list-data-targets
 make list-report-targets
 
 # Lint

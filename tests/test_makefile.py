@@ -146,6 +146,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-diagnostic-targets" in recipe
     assert "make list-verification-targets" in recipe
     assert "make list-pipeline-targets" in recipe
+    assert "make list-data-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
@@ -167,6 +168,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make show-targets" in recipe
     assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
+    assert "make list-data-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
@@ -175,6 +177,31 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "pytest" not in recipe
     assert "rm -rf" not in recipe
     assert "qsr-audit " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_data_targets_prints_data_layer_scopes_only() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("list-data-targets")]
+    recipe = "\n".join(commands)
+
+    assert "Data-layer target scopes" in recipe
+    assert "make run-ingest" in recipe
+    assert "data/raw/source_workbook.xlsx" in recipe
+    assert "data/bronze/" in recipe
+    assert "data/silver/" in recipe
+    assert "make run-validate" in recipe
+    assert "data/gold/ validation flags" in recipe
+    assert "make run-syntheticness" in recipe
+    assert "syntheticness diagnostics" in recipe
+    assert "make run-reconcile" in recipe
+    assert "data/reference/" in recipe
+    assert "data/gold/ reconciled metrics" in recipe
+    assert "make run-full-audit" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
     assert all("$(MAKE)" not in command for command in commands)
 
 
