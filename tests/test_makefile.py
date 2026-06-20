@@ -147,6 +147,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-verification-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
+    assert "make list-governance-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
@@ -169,6 +170,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
+    assert "make list-governance-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
@@ -197,6 +199,34 @@ def test_list_data_targets_prints_data_layer_scopes_only() -> None:
     assert "data/reference/" in recipe
     assert "data/gold/ reconciled metrics" in recipe
     assert "make run-full-audit" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_governance_targets_prints_release_gate_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-governance-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Governance and release target scopes" in recipe
+    assert "make run-full-audit" in recipe
+    assert "Gold gate" in recipe
+    assert "release preflight" in recipe
+    assert "gate-gold CLI" in recipe
+    assert "data/gold/gold_publish_decisions.parquet" in recipe
+    assert "publishable/blocked KPI outputs" in recipe
+    assert "preflight-release CLI" in recipe
+    assert "artifacts/release/preflight_summary.json" in recipe
+    assert "manifest/audit logs" in recipe
+    assert "artifacts/manifests/" in recipe
+    assert "artifacts/audit_logs/" in recipe
+    assert "publishability reports" in recipe
+    assert "reports/audit/gold_publish_scorecard.md" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe
