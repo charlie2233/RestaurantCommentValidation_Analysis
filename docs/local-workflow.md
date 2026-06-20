@@ -79,12 +79,16 @@ generation and release preflight before report generation.
 ## Cleanup
 
 ```bash
+make list-clean-targets
 make clean-build
 make clean-test
 make clean-generated
 make clean-caches
 make clean-all-local
 ```
+
+Use `make list-clean-targets` before cleanup if you want to compare cleanup
+scope without deleting anything.
 
 Use `make clean-build` when you only want to remove Python packaging outputs
 (`dist/`, `build/`, and `*.egg-info`) without touching generated data, reports,

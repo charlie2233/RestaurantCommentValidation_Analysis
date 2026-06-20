@@ -291,6 +291,7 @@ make build-package
 make check-hygiene
 
 # Clean ignored artifacts and caches
+make list-clean-targets
 make clean-generated
 make clean-build
 make clean-test

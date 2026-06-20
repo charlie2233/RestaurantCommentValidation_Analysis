@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-build clean-test clean-caches clean-all-local run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -27,6 +27,7 @@ help:
 	@printf "  make demo-bundle        Package the demo showcase bundle\n"
 	@printf "\n"
 	@printf "Cleanup:\n"
+	@printf "  make list-clean-targets Print cleanup commands and scope notes\n"
 	@printf "  make clean-generated    Remove ignored generated data/report artifacts\n"
 	@printf "  make clean-build        Remove package build outputs only\n"
 	@printf "  make clean-test         Remove pytest and coverage artifacts only\n"
@@ -91,6 +92,15 @@ check-hygiene:
 
 build-package:
 	python -m build
+
+list-clean-targets:
+	@printf "qsr-audit cleanup targets\n"
+	@printf "\n"
+	@printf "  make clean-build        Packaging outputs only: dist/, build/, *.egg-info\n"
+	@printf "  make clean-test         Test outputs only: .pytest_cache/, .coverage, coverage.xml, htmlcov/\n"
+	@printf "  make clean-caches       Test/build outputs plus Python bytecode and .ruff_cache\n"
+	@printf "  make clean-generated    Generated local data/report artifacts under data/, reports/, strategy/\n"
+	@printf "  make clean-all-local    Broad local reset: clean-generated plus clean-caches\n"
 
 clean-generated:
 	find data/raw -mindepth 1 ! -name '.gitkeep' -delete

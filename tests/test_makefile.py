@@ -100,6 +100,23 @@ def test_clean_build_target_removes_only_packaging_outputs() -> None:
     assert "strategy" not in recipe
 
 
+def test_list_clean_targets_prints_cleanup_scope_notes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-clean-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "qsr-audit cleanup targets" in recipe
+    assert "make clean-build" in recipe
+    assert "make clean-test" in recipe
+    assert "make clean-caches" in recipe
+    assert "make clean-generated" in recipe
+    assert "make clean-all-local" in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
 def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
     commands = _make_target_commands("clean-test")
     recipe = "\n".join(commands)
