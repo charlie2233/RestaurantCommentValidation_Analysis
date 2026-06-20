@@ -1,4 +1,4 @@
-.PHONY: help setup lint test smoke-cli quick doctor verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help setup lint test smoke-cli quick doctor ci-status verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -10,6 +10,7 @@ help:
 	@printf "  make smoke-cli          Run fast CLI help smoke checks\n"
 	@printf "  make quick              Run CLI smoke checks and repository hygiene\n"
 	@printf "  make doctor             Print safe local diagnostics without modifying files\n"
+	@printf "  make ci-status          Print latest GitHub Actions status for origin/main\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
@@ -55,6 +56,16 @@ doctor:
 	@git rev-parse --short HEAD
 	@printf "\nGit status:\n"
 	@git status --short --branch
+
+ci-status:
+	@if ! command -v gh >/dev/null 2>&1; then \
+		printf "GitHub CLI (gh) is not installed. Install gh to check CI status from Make.\n"; \
+	else \
+		branch=$$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); \
+		if [ -z "$$branch" ]; then branch=main; fi; \
+		printf "Latest GitHub Actions run for origin/%s:\n" "$$branch"; \
+		gh run list --branch "$$branch" --limit 1; \
+	fi
 
 verify:
 	pre-commit run --all-files

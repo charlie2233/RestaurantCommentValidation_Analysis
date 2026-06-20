@@ -16,6 +16,7 @@ make lint
 make smoke-cli
 make quick
 make doctor
+make ci-status
 make test
 make verify
 make build-package
@@ -30,6 +31,9 @@ with repository artifact hygiene.
 
 Use `make doctor` when you need a safe local diagnostics snapshot: Python
 version, CLI help, current Git branch/SHA, and short repository status.
+
+Use `make ci-status` to print the latest GitHub Actions run for `origin/main`.
+If GitHub CLI is not installed, the target exits successfully with a setup hint.
 
 Use `make verify` before pushing broad or release-relevant changes. It runs the
 full local gate: pre-commit hooks, coverage-enforced tests, repository hygiene,

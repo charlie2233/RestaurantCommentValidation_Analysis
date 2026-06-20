@@ -56,3 +56,16 @@ def test_doctor_target_prints_safe_diagnostics_only() -> None:
     assert "git status --short --branch" in commands
     qsr_commands = [command for command in commands if command.startswith("qsr-audit ")]
     assert qsr_commands == ["qsr-audit --help"]
+
+
+def test_ci_status_target_uses_github_cli_with_soft_missing_gh_exit() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("ci-status")]
+    recipe = "\n".join(commands)
+
+    assert "command -v gh" in recipe
+    assert "GitHub CLI (gh) is not installed" in recipe
+    assert "else" in recipe
+    assert "refs/remotes/origin/HEAD" in recipe
+    assert "gh run list" in recipe
+    assert '--branch "$$branch"' in recipe
+    assert all("qsr-audit " not in command for command in commands)

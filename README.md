@@ -274,6 +274,9 @@ make quick
 # Safe local diagnostics
 make doctor
 
+# Latest GitHub Actions status for origin/main
+make ci-status
+
 # Full verification gate
 make verify
 
