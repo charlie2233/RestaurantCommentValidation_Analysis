@@ -262,6 +262,9 @@ make lint
 # Tests
 make test
 
+# Full verification gate
+make verify
+
 # Packaging smoke test
 make build-package
 
@@ -272,8 +275,7 @@ make check-hygiene
 make clean-generated
 make clean-caches
 
-# Lint + tests in one shot (CI parity)
-pre-commit run --all-files && pytest --cov=src --cov-report=term-missing --cov-fail-under=85
+# Full verification expands to hooks, coverage, hygiene, and package build.
 ```
 
 ---

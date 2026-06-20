@@ -1,4 +1,4 @@
-.PHONY: setup lint test check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: setup lint test verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 setup:
 	pip install -e ".[dev]"
@@ -9,6 +9,12 @@ lint:
 
 test:
 	pytest
+
+verify:
+	pre-commit run --all-files
+	pytest --cov=src --cov-report=term-missing --cov-fail-under=85
+	python scripts/check_repo_hygiene.py
+	python -m build
 
 check-hygiene:
 	python scripts/check_repo_hygiene.py

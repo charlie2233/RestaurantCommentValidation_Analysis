@@ -13,9 +13,14 @@ make setup
 ```bash
 make lint
 make test
+make verify
 make build-package
 make check-hygiene
 ```
+
+Use `make verify` before pushing broad or release-relevant changes. It runs the
+full local gate: pre-commit hooks, coverage-enforced tests, repository hygiene,
+and package build.
 
 ## Pipeline loop
 
