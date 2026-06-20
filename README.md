@@ -127,6 +127,10 @@ Use `make list-release-targets` when you need to inspect release preflight
 requirements, required Gold artifacts, lineage manifests, and output locations
 without running release checks.
 
+Use `make list-history-targets` when you need to inspect monthly Gold snapshot
+preconditions, archived files, and forecast-readiness boundaries without
+creating snapshots.
+
 ## Main workflows
 
 ### Standard audit path

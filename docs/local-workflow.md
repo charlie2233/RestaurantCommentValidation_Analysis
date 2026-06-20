@@ -20,6 +20,7 @@ make list-data-targets
 make list-reference-targets
 make list-governance-targets
 make list-release-targets
+make list-history-targets
 make list-forecasting-targets
 make list-rag-targets
 make list-report-targets
@@ -42,8 +43,8 @@ easier to remember.
 
 Use `make list-workflow-targets` when you want a compact index of the
 diagnostic, verification, data-layer, reference/reconciliation, governance,
-release/preflight, forecasting, RAG, report/demo, strategy interpretation,
-pipeline, and cleanup command-list helpers.
+release/preflight, monthly Gold history, forecasting, RAG, report/demo,
+strategy interpretation, pipeline, and cleanup command-list helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
@@ -64,6 +65,10 @@ manifest/audit, and publishability surfaces without running release checks.
 Use `make list-release-targets` to compare preflight release inputs, required
 Gold artifacts, upstream manifests, and release summary output locations without
 running release checks.
+
+Use `make list-history-targets` to compare monthly Gold snapshot preconditions,
+archived files, snapshot indexes, and forecast-readiness boundaries without
+creating history snapshots.
 
 Use `make list-forecasting-targets` to compare Gold snapshot, forecast-panel,
 and baseline experiment helpers without creating history snapshots or forecast

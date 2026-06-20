@@ -150,6 +150,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
     assert "make list-release-targets" in recipe
+    assert "make list-history-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
@@ -179,6 +180,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
     assert "make list-release-targets" in recipe
+    assert "make list-history-targets" in recipe
     assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
@@ -299,6 +301,39 @@ def test_list_release_targets_prints_preflight_scopes_only() -> None:
     assert "artifacts/release/preflight_summary.md" in recipe
     assert "release boundary" in recipe
     assert "advisory/blocked rows stay out of publishable exports" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_history_targets_prints_snapshot_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-history-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Monthly Gold history target scopes" in recipe
+    assert "snapshot-gold CLI" in recipe
+    assert "data/gold/history/as_of_date=YYYY-MM-DD/" in recipe
+    assert "preconditions" in recipe
+    assert "Evidence cycle closed or deferred" in recipe
+    assert "reconcile" in recipe
+    assert "gate-gold" in recipe
+    assert "preflight-release" in recipe
+    assert "archived files" in recipe
+    assert "forecast_snapshot.parquet" in recipe
+    assert "gold_publish_decisions.parquet" in recipe
+    assert "publishable_kpis.parquet" in recipe
+    assert "manifest.json" in recipe
+    assert "snapshot index" in recipe
+    assert "data/gold/history/snapshot_manifest.parquet" in recipe
+    assert "records each as_of_date" in recipe
+    assert "forecast boundary" in recipe
+    assert "Repeated publishable Gold snapshots only" in recipe
+    assert "no raw workbook, advisory, or blocked facts" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe
