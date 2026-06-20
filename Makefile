@@ -1,4 +1,28 @@
-.PHONY: setup lint test verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help setup lint test verify check-hygiene build-package clean-generated clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+
+help:
+	@printf "qsr-audit developer commands\n"
+	@printf "\n"
+	@printf "Setup and verification:\n"
+	@printf "  make setup              Install editable dev dependencies and pre-commit hooks\n"
+	@printf "  make lint               Run pre-commit hooks on all files\n"
+	@printf "  make test               Run the pytest suite\n"
+	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
+	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
+	@printf "  make build-package      Build the Python package\n"
+	@printf "\n"
+	@printf "Pipeline shortcuts:\n"
+	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
+	@printf "  make run-validate       Validate the default Silver input\n"
+	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
+	@printf "  make run-reconcile      Reconcile Silver metrics against manual references\n"
+	@printf "  make run-report         Generate reports from Gold outputs\n"
+	@printf "  make run-full-audit     Run the standard audit command sequence\n"
+	@printf "  make demo-bundle        Package the demo showcase bundle\n"
+	@printf "\n"
+	@printf "Cleanup:\n"
+	@printf "  make clean-generated    Remove ignored generated data/report artifacts\n"
+	@printf "  make clean-caches       Remove Python/test/build caches\n"
 
 setup:
 	pip install -e ".[dev]"

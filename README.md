@@ -256,6 +256,9 @@ Settings are read from environment variables (prefix `QSR_`) or a `.env` file:
 ## Development
 
 ```bash
+# List supported commands
+make help
+
 # Lint
 make lint
 

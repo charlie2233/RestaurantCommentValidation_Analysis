@@ -11,6 +11,7 @@ make setup
 ## Common developer loop
 
 ```bash
+make help
 make lint
 make test
 make verify
