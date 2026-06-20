@@ -5,10 +5,7 @@
 
 ## Validation
 
-- [ ] `make lint`
-- [ ] `make test`
-- [ ] `make check-hygiene`
-- [ ] `make build-package`
+- [ ] `make verify`
 - [ ] Relevant CLI flow exercised locally
 
 ## Data Handling
