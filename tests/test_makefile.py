@@ -145,6 +145,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "Workflow target lists" in recipe
     assert "make list-diagnostic-targets" in recipe
     assert "make list-verification-targets" in recipe
+    assert "make list-config-targets" in recipe
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-reference-targets" in recipe
@@ -177,6 +178,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make show-targets" in recipe
     assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
+    assert "make list-config-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-reference-targets" in recipe
     assert "make list-governance-targets" in recipe
@@ -529,6 +531,39 @@ def test_list_verification_targets_prints_check_scope_notes_only() -> None:
     assert "pytest " not in recipe
     assert "python scripts/check_repo_hygiene.py" not in recipe
     assert "python -m build" not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_config_targets_prints_safe_settings_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-config-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Configuration and settings target scopes" in recipe
+    assert "settings loader" in recipe
+    assert "src/qsr_audit/config.py" in recipe
+    assert "QSR_* env vars" in recipe
+    assert ".env via pydantic-settings" in recipe
+    assert "example env file" in recipe
+    assert ".env.example" in recipe
+    assert "safe debug summary" in recipe
+    assert "Settings.safe_debug_summary()" in recipe
+    assert "redacts OPENAI/GITHUB/HF token env values" in recipe
+    assert "root validation" in recipe
+    assert "Data, reports, strategy, and artifacts roots must not overlap" in recipe
+    assert "artifact boundary" in recipe
+    assert "Settings.validate_artifact_root()" in recipe
+    assert "reports/ or strategy/" in recipe
+    assert "diagnostic boundary" in recipe
+    assert "never prints .env contents, secret values, or raw env values" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert "OPENAI_API_KEY=" not in recipe
+    assert "HF_TOKEN=" not in recipe
     assert all("$(MAKE)" not in command for command in commands)
 
 

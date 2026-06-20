@@ -16,6 +16,7 @@ make show-targets
 make list-workflow-targets
 make list-diagnostic-targets
 make list-verification-targets
+make list-config-targets
 make list-data-targets
 make list-reference-targets
 make list-governance-targets
@@ -44,15 +45,19 @@ easier to remember.
 
 Use `make list-workflow-targets` when you want a compact index of the
 diagnostic, verification, data-layer, reference/reconciliation, governance,
-release/preflight, monthly Gold history, forecasting, RAG, report/demo,
-strategy interpretation, demo, credibility scoring, pipeline, and cleanup
-command-list helpers.
+configuration/root validation, release/preflight, monthly Gold history,
+forecasting, RAG, report/demo, strategy interpretation, demo, credibility
+scoring, pipeline, and cleanup command-list helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
 
 Use `make list-verification-targets` to compare verification and check helpers
 without running hooks, tests, hygiene checks, or package builds.
+
+Use `make list-config-targets` to compare settings/environment documentation,
+safe debug redaction, root validation, and artifact-boundary behavior without
+printing secrets or raw environment values.
 
 Use `make list-data-targets` to compare data-layer commands and their
 Raw/Bronze/Silver/Gold scopes without ingesting, validating, or reconciling data.

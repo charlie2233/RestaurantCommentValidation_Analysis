@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-release-targets list-history-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets list-credibility-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets list-config-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-release-targets list-history-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets list-credibility-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -16,6 +16,7 @@ help:
 	@printf "  make list-workflow-targets    Print workflow command-list index\n"
 	@printf "  make list-diagnostic-targets  Print diagnostic/discovery commands and scope notes\n"
 	@printf "  make list-verification-targets  Print verification/check commands and scope notes\n"
+	@printf "  make list-config-targets      Print config/env/root validation and redaction scope notes\n"
 	@printf "  make verify             Run hooks, coverage tests, repo hygiene, and package build\n"
 	@printf "  make check-hygiene      Run repository artifact hygiene checks\n"
 	@printf "  make build-package      Build the Python package\n"
@@ -101,6 +102,7 @@ list-workflow-targets:
 	@printf "\n"
 	@printf "  make list-diagnostic-targets    Diagnostic and discovery commands\n"
 	@printf "  make list-verification-targets  Verification and check commands\n"
+	@printf "  make list-config-targets        Config/env/root validation command scopes\n"
 	@printf "  make list-pipeline-targets      Pipeline shortcut commands\n"
 	@printf "  make list-data-targets          Data-layer command scopes\n"
 	@printf "  make list-reference-targets     Reference/reconciliation command scopes\n"
@@ -122,6 +124,7 @@ list-diagnostic-targets:
 	@printf "  make show-targets       Alias for make help\n"
 	@printf "  make list-workflow-targets  Workflow command-list index\n"
 	@printf "  make list-verification-targets  Verification/check commands and scope notes\n"
+	@printf "  make list-config-targets    Config/env docs, safe debug output, and root validation scopes\n"
 	@printf "  make list-pipeline-targets    Pipeline shortcut commands and scope notes\n"
 	@printf "  make list-data-targets        Data-layer commands and Bronze/Silver/Gold scopes\n"
 	@printf "  make list-reference-targets   Reference validation, reconciliation, and coverage scopes\n"
@@ -149,6 +152,16 @@ list-verification-targets:
 	@printf "  make verify             Full local gate: hooks, coverage, hygiene, package build\n"
 	@printf "  make check-hygiene      Repository artifact hygiene checks\n"
 	@printf "  make build-package      Source distribution and wheel build\n"
+
+list-config-targets:
+	@printf "Configuration and settings target scopes\n"
+	@printf "\n"
+	@printf "  settings loader         src/qsr_audit/config.py reads QSR_* env vars and .env via pydantic-settings\n"
+	@printf "  example env file        .env.example documents local roots and keeps real secrets out of committed files\n"
+	@printf "  safe debug summary      Settings.safe_debug_summary() redacts OPENAI/GITHUB/HF token env values\n"
+	@printf "  root validation         Data, reports, strategy, and artifacts roots must not overlap\n"
+	@printf "  artifact boundary       Settings.validate_artifact_root() rejects generated artifacts under reports/ or strategy/\n"
+	@printf "  diagnostic boundary     Prints paths and docs only; never prints .env contents, secret values, or raw env values\n"
 
 verify:
 	pre-commit run --all-files

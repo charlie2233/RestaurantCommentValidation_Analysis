@@ -135,6 +135,10 @@ Use `make list-credibility-targets` when you need to inspect credibility scoring
 inputs, outputs, syntheticness benchmark artifacts, and review-pressure
 boundaries without running scoring.
 
+Use `make list-config-targets` when you need to inspect settings/environment
+docs, safe debug redaction, root validation, and artifact-boundary behavior
+without printing secrets or reading raw environment values.
+
 ## Main workflows
 
 ### Standard audit path
@@ -285,6 +289,7 @@ make show-targets
 make list-workflow-targets
 make list-diagnostic-targets
 make list-verification-targets
+make list-config-targets
 make list-data-targets
 make list-governance-targets
 make list-forecasting-targets
