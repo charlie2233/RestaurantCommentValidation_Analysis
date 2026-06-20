@@ -265,6 +265,9 @@ make lint
 # Tests
 make test
 
+# Fast CLI help smoke checks
+make smoke-cli
+
 # Full verification gate
 make verify
 

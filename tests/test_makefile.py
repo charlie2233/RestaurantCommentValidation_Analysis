@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -27,9 +26,14 @@ def test_run_full_audit_includes_release_gate_before_reports() -> None:
 
     assert "qsr-audit gate-gold" in commands
     assert "qsr-audit preflight-release" in commands
-    assert commands.index("qsr-audit gate-gold") < commands.index(
-        "qsr-audit preflight-release"
-    )
+    assert commands.index("qsr-audit gate-gold") < commands.index("qsr-audit preflight-release")
     assert commands.index("qsr-audit preflight-release") < commands.index(
         "qsr-audit report --output reports/"
     )
+
+
+def test_smoke_cli_target_runs_help_only_cli_regressions() -> None:
+    commands = _make_target_commands("smoke-cli")
+
+    assert commands == ["pytest tests/test_cli_help.py"]
+    assert all(not command.startswith("qsr-audit ") for command in commands)

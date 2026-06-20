@@ -13,11 +13,15 @@ make setup
 ```bash
 make help
 make lint
+make smoke-cli
 make test
 make verify
 make build-package
 make check-hygiene
 ```
+
+Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
+iterating on command names, help text, or operator guidance.
 
 Use `make verify` before pushing broad or release-relevant changes. It runs the
 full local gate: pre-commit hooks, coverage-enforced tests, repository hygiene,
