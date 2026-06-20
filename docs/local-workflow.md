@@ -23,6 +23,7 @@ make list-forecasting-targets
 make list-rag-targets
 make list-report-targets
 make list-strategy-targets
+make list-demo-targets
 make lint
 make smoke-cli
 make quick
@@ -73,6 +74,10 @@ commands and their output locations without generating files.
 Use `make list-strategy-targets` to compare Gold-derived strategy interpretation
 commands and output locations without generating playbooks, recommendations, or
 machine-readable strategy files.
+
+Use `make list-demo-targets` to compare the five-brand demo command path,
+required workbook/QSR50 inputs, and demo artifact locations without running or
+packaging the demo.
 
 Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
 iterating on command names, help text, or operator guidance.

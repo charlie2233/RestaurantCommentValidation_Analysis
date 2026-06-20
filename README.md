@@ -120,6 +120,9 @@ Use `make list-strategy-targets` when you need to inspect Gold-derived strategy
 interpretation outputs and boundaries without generating playbooks or
 recommendation files.
 
+Use `make list-demo-targets` when you need to inspect the five-brand demo inputs,
+commands, and artifact locations without running or packaging the demo.
+
 ## Main workflows
 
 ### Standard audit path

@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -29,6 +29,7 @@ help:
 	@printf "  make list-rag-targets         Print retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
 	@printf "  make list-strategy-targets    Print strategy interpretation commands and output locations\n"
+	@printf "  make list-demo-targets        Print five-brand demo commands, inputs, and artifacts\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
@@ -105,6 +106,7 @@ list-workflow-targets:
 	@printf "  make list-rag-targets           Retrieval-only RAG command scopes\n"
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
 	@printf "  make list-strategy-targets      Strategy interpretation command scopes\n"
+	@printf "  make list-demo-targets          Five-brand demo command scopes\n"
 	@printf "  make list-clean-targets         Cleanup commands\n"
 
 list-diagnostic-targets:
@@ -122,6 +124,7 @@ list-diagnostic-targets:
 	@printf "  make list-rag-targets         Retrieval-only RAG commands and artifact locations\n"
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
 	@printf "  make list-strategy-targets    Strategy interpretation commands and output locations\n"
+	@printf "  make list-demo-targets        Five-brand demo commands, inputs, and artifacts\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
 	@printf "  make version            Installed package version and git commit\n"
@@ -256,6 +259,15 @@ list-strategy-targets:
 	@printf "  machine outputs         strategy/recommendations.parquet and strategy/recommendations.json\n"
 	@printf "  source boundary         Consumes Gold validated, reconciled, and publish-gated artifacts only\n"
 	@printf "  interpretation boundary Strategy outputs do not redefine metrics or promote blocked/advisory facts\n"
+
+list-demo-targets:
+	@printf "Five-brand demo target scopes\n"
+	@printf "\n"
+	@printf "  demo-happy-path CLI     Raw workbook plus data/reference/qsr50_reference.csv -> fixed five-brand demo outputs\n"
+	@printf "  demo input scope        Starbucks, Taco Bell, Raising Cane's, Dutch Bros, and Shake Shack only\n"
+	@printf "  scorecard artifacts     reports/demo/index.html, reports/validation/core_scorecard.html, reports/reconciliation/brand_deltas.csv\n"
+	@printf "  summary/gold artifacts  reports/summary/top_risks.md, data/gold/demo_gold.parquet, data/gold/demo_syntheticness.parquet\n"
+	@printf "  package-demo CLI        make demo-bundle packages the same demo artifacts under artifacts/demo_bundle/\n"
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx

@@ -153,6 +153,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-strategy-targets" in recipe
+    assert "make list-demo-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
@@ -180,6 +181,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-strategy-targets" in recipe
+    assert "make list-demo-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
     assert "make version" in recipe
@@ -363,6 +365,36 @@ def test_list_strategy_targets_prints_interpretation_scopes_only() -> None:
     assert "Gold validated, reconciled, and publish-gated artifacts only" in recipe
     assert "do not redefine metrics" in recipe
     assert "blocked/advisory facts" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_demo_targets_prints_demo_scopes_only() -> None:
+    commands = [command.removeprefix("@") for command in _make_target_commands("list-demo-targets")]
+    recipe = "\n".join(commands)
+
+    assert "Five-brand demo target scopes" in recipe
+    assert "demo-happy-path CLI" in recipe
+    assert "Raw workbook plus data/reference/qsr50_reference.csv" in recipe
+    assert "fixed five-brand demo outputs" in recipe
+    assert "Starbucks" in recipe
+    assert "Taco Bell" in recipe
+    assert "Raising Cane's" in recipe
+    assert "Dutch Bros" in recipe
+    assert "Shake Shack" in recipe
+    assert "reports/demo/index.html" in recipe
+    assert "reports/validation/core_scorecard.html" in recipe
+    assert "reports/reconciliation/brand_deltas.csv" in recipe
+    assert "reports/summary/top_risks.md" in recipe
+    assert "data/gold/demo_gold.parquet" in recipe
+    assert "data/gold/demo_syntheticness.parquet" in recipe
+    assert "package-demo CLI" in recipe
+    assert "make demo-bundle" in recipe
+    assert "artifacts/demo_bundle/" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe
