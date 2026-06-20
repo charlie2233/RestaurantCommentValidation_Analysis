@@ -16,6 +16,7 @@ make show-targets
 make list-workflow-targets
 make list-diagnostic-targets
 make list-verification-targets
+make list-report-targets
 make lint
 make smoke-cli
 make quick
@@ -32,13 +33,17 @@ make check-hygiene
 easier to remember.
 
 Use `make list-workflow-targets` when you want a compact index of the
-diagnostic, verification, pipeline, and cleanup command-list helpers.
+diagnostic, verification, report/demo, pipeline, and cleanup command-list
+helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
 
 Use `make list-verification-targets` to compare verification and check helpers
 without running hooks, tests, hygiene checks, or package builds.
+
+Use `make list-report-targets` to compare report and demo artifact-producing
+commands and their output locations without generating files.
 
 Use `make smoke-cli` for a quick, non-mutating CLI discoverability check while
 iterating on command names, help text, or operator guidance.

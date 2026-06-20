@@ -131,6 +131,7 @@ def test_list_pipeline_targets_prints_pipeline_scope_notes_only() -> None:
     assert "make run-report" in recipe
     assert "make run-full-audit" in recipe
     assert "make demo-bundle" in recipe
+    assert "make list-report-targets" not in recipe
     assert "qsr-audit " not in recipe
     assert all("$(MAKE)" not in command for command in commands)
 
@@ -145,6 +146,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-diagnostic-targets" in recipe
     assert "make list-verification-targets" in recipe
     assert "make list-pipeline-targets" in recipe
+    assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
@@ -165,6 +167,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make show-targets" in recipe
     assert "make list-workflow-targets" in recipe
     assert "make list-pipeline-targets" in recipe
+    assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
     assert "make version" in recipe
@@ -172,6 +175,29 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "pytest" not in recipe
     assert "rm -rf" not in recipe
     assert "qsr-audit " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_report_targets_prints_output_locations_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-report-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Report and demo artifact targets" in recipe
+    assert "make run-report" in recipe
+    assert "reports/" in recipe
+    assert "strategy/" in recipe
+    assert "make run-full-audit" in recipe
+    assert "data/gold/" in recipe
+    assert "artifacts/release/" in recipe
+    assert "make demo-bundle" in recipe
+    assert "artifacts/demo_bundle/" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
     assert all("$(MAKE)" not in command for command in commands)
 
 
