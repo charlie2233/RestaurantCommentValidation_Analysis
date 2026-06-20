@@ -295,6 +295,7 @@ make clean-generated
 make clean-build
 make clean-test
 make clean-caches
+make clean-all-local
 
 # Full verification expands to hooks, coverage, hygiene, and package build.
 ```

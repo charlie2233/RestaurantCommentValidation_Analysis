@@ -83,6 +83,7 @@ make clean-build
 make clean-test
 make clean-generated
 make clean-caches
+make clean-all-local
 ```
 
 Use `make clean-build` when you only want to remove Python packaging outputs
@@ -95,6 +96,9 @@ build outputs or generated data.
 
 `make clean-caches` composes `clean-test` and `clean-build`, then removes Python
 bytecode caches and `.ruff_cache`.
+
+Use `make clean-all-local` only when you intentionally want a broad local reset:
+it removes generated data/report/strategy artifacts and local caches.
 
 ## Optional offline experimentation loop
 

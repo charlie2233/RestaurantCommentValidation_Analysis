@@ -122,3 +122,9 @@ def test_clean_caches_composes_narrow_cleanup_targets() -> None:
         "find . -type d -name '__pycache__' -prune -exec rm -rf {} +",
         "rm -rf .ruff_cache",
     ]
+
+
+def test_clean_all_local_composes_generated_and_cache_cleanup() -> None:
+    commands = _make_target_commands("clean-all-local")
+
+    assert commands == ["$(MAKE) clean-generated", "$(MAKE) clean-caches"]

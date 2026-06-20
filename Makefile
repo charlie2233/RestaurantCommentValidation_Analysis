@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-build clean-test clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-build clean-test clean-caches clean-all-local run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -31,6 +31,7 @@ help:
 	@printf "  make clean-build        Remove package build outputs only\n"
 	@printf "  make clean-test         Remove pytest and coverage artifacts only\n"
 	@printf "  make clean-caches       Remove Python/test/build caches\n"
+	@printf "  make clean-all-local    Remove generated local artifacts and caches\n"
 
 show-targets:
 	$(MAKE) help
@@ -111,6 +112,10 @@ clean-caches:
 	$(MAKE) clean-build
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
 	rm -rf .ruff_cache
+
+clean-all-local:
+	$(MAKE) clean-generated
+	$(MAKE) clean-caches
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
