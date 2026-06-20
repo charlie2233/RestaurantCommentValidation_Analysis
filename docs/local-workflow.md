@@ -50,6 +50,13 @@ and package build.
 ## Pipeline loop
 
 ```bash
+make list-pipeline-targets
+```
+
+Use `make list-pipeline-targets` before running pipeline shortcuts if you want
+to compare their scope without executing the workflow.
+
+```bash
 qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
 qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet

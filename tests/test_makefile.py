@@ -117,6 +117,24 @@ def test_list_clean_targets_prints_cleanup_scope_notes_only() -> None:
     assert all("$(MAKE)" not in command for command in commands)
 
 
+def test_list_pipeline_targets_prints_pipeline_scope_notes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-pipeline-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Pipeline shortcut targets" in recipe
+    assert "make run-ingest" in recipe
+    assert "make run-validate" in recipe
+    assert "make run-syntheticness" in recipe
+    assert "make run-reconcile" in recipe
+    assert "make run-report" in recipe
+    assert "make run-full-audit" in recipe
+    assert "make demo-bundle" in recipe
+    assert "qsr-audit " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
 def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
     commands = _make_target_commands("clean-test")
     recipe = "\n".join(commands)

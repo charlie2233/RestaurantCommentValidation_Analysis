@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -18,6 +18,7 @@ help:
 	@printf "  make build-package      Build the Python package\n"
 	@printf "\n"
 	@printf "Pipeline shortcuts:\n"
+	@printf "  make list-pipeline-targets Print pipeline commands and scope notes\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
@@ -126,6 +127,17 @@ clean-caches:
 clean-all-local:
 	$(MAKE) clean-generated
 	$(MAKE) clean-caches
+
+list-pipeline-targets:
+	@printf "Pipeline shortcut targets\n"
+	@printf "\n"
+	@printf "  make run-ingest         Workbook ingest into Bronze/Silver\n"
+	@printf "  make run-validate       Silver workbook validation with AUV tolerance\n"
+	@printf "  make run-syntheticness  Syntheticness diagnostics on core metrics\n"
+	@printf "  make run-reconcile      Manual-reference reconciliation into Gold artifacts\n"
+	@printf "  make run-report         Report generation from Gold outputs\n"
+	@printf "  make run-full-audit     Full standard audit path through release preflight\n"
+	@printf "  make demo-bundle        Package the five-brand demo showcase bundle\n"
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
