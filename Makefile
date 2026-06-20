@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-release-targets list-history-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status list-workflow-targets list-diagnostic-targets list-verification-targets verify check-hygiene build-package list-clean-targets clean-generated clean-build clean-test clean-caches clean-all-local list-pipeline-targets list-data-targets list-reference-targets list-governance-targets list-release-targets list-history-targets list-forecasting-targets list-rag-targets list-report-targets list-strategy-targets list-demo-targets list-credibility-targets run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -32,6 +32,7 @@ help:
 	@printf "  make list-report-targets      Print report/demo artifact commands and output locations\n"
 	@printf "  make list-strategy-targets    Print strategy interpretation commands and output locations\n"
 	@printf "  make list-demo-targets        Print five-brand demo commands, inputs, and artifacts\n"
+	@printf "  make list-credibility-targets Print credibility scoring inputs, outputs, and boundaries\n"
 	@printf "  make run-ingest         Ingest the default workbook path into Bronze/Silver\n"
 	@printf "  make run-validate       Validate the default Silver input\n"
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
@@ -111,6 +112,7 @@ list-workflow-targets:
 	@printf "  make list-report-targets        Report/demo artifact commands\n"
 	@printf "  make list-strategy-targets      Strategy interpretation command scopes\n"
 	@printf "  make list-demo-targets          Five-brand demo command scopes\n"
+	@printf "  make list-credibility-targets   Credibility scoring command scopes\n"
 	@printf "  make list-clean-targets         Cleanup commands\n"
 
 list-diagnostic-targets:
@@ -131,6 +133,7 @@ list-diagnostic-targets:
 	@printf "  make list-report-targets      Report/demo artifact commands and output locations\n"
 	@printf "  make list-strategy-targets    Strategy interpretation commands and output locations\n"
 	@printf "  make list-demo-targets        Five-brand demo commands, inputs, and artifacts\n"
+	@printf "  make list-credibility-targets Credibility scoring inputs, outputs, and review boundaries\n"
 	@printf "  make list-clean-targets       Cleanup commands and scope notes\n"
 	@printf "  make doctor             Python, CLI help, git branch/SHA, and repo status\n"
 	@printf "  make version            Installed package version and git commit\n"
@@ -292,6 +295,16 @@ list-demo-targets:
 	@printf "  scorecard artifacts     reports/demo/index.html, reports/validation/core_scorecard.html, reports/reconciliation/brand_deltas.csv\n"
 	@printf "  summary/gold artifacts  reports/summary/top_risks.md, data/gold/demo_gold.parquet, data/gold/demo_syntheticness.parquet\n"
 	@printf "  package-demo CLI        make demo-bundle packages the same demo artifacts under artifacts/demo_bundle/\n"
+
+list-credibility-targets:
+	@printf "Credibility scoring target scopes\n"
+	@printf "\n"
+	@printf "  score-credibility CLI   Gold decisions plus syntheticness signals -> calibrated credibility rollup\n"
+	@printf "  required Gold inputs    data/gold/gold_publish_decisions.parquet and data/gold/syntheticness_signals.parquet\n"
+	@printf "  lineage manifests       run-syntheticness, reconcile, and gate-gold under artifacts/manifests/<command>/latest.json\n"
+	@printf "  credibility outputs     data/gold/credibility_rollup.parquet, reports/summary/credibility_scorecard.html, reports/summary/credibility_method.md\n"
+	@printf "  benchmark artifacts     artifacts/syntheticness/benchmark_metrics.json and artifacts/syntheticness/benchmark_summary.md\n"
+	@printf "  review boundary         Inherits publish_status; syntheticness raises review pressure but cannot silently auto-block rows\n"
 
 run-ingest:
 	qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx

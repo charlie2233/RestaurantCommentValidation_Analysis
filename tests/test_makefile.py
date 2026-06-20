@@ -156,6 +156,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-report-targets" in recipe
     assert "make list-strategy-targets" in recipe
     assert "make list-demo-targets" in recipe
+    assert "make list-credibility-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
@@ -186,6 +187,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-report-targets" in recipe
     assert "make list-strategy-targets" in recipe
     assert "make list-demo-targets" in recipe
+    assert "make list-credibility-targets" in recipe
     assert "make list-clean-targets" in recipe
     assert "make doctor" in recipe
     assert "make version" in recipe
@@ -464,6 +466,43 @@ def test_list_demo_targets_prints_demo_scopes_only() -> None:
     assert "package-demo CLI" in recipe
     assert "make demo-bundle" in recipe
     assert "artifacts/demo_bundle/" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_credibility_targets_prints_scoring_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-credibility-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Credibility scoring target scopes" in recipe
+    assert "score-credibility CLI" in recipe
+    assert "Gold decisions plus syntheticness signals" in recipe
+    assert "calibrated credibility rollup" in recipe
+    assert "required Gold inputs" in recipe
+    assert "data/gold/gold_publish_decisions.parquet" in recipe
+    assert "data/gold/syntheticness_signals.parquet" in recipe
+    assert "lineage manifests" in recipe
+    assert "run-syntheticness" in recipe
+    assert "reconcile" in recipe
+    assert "gate-gold" in recipe
+    assert "artifacts/manifests/<command>/latest.json" in recipe
+    assert "credibility outputs" in recipe
+    assert "data/gold/credibility_rollup.parquet" in recipe
+    assert "reports/summary/credibility_scorecard.html" in recipe
+    assert "reports/summary/credibility_method.md" in recipe
+    assert "benchmark artifacts" in recipe
+    assert "artifacts/syntheticness/benchmark_metrics.json" in recipe
+    assert "artifacts/syntheticness/benchmark_summary.md" in recipe
+    assert "review boundary" in recipe
+    assert "Inherits publish_status" in recipe
+    assert "syntheticness raises review pressure" in recipe
+    assert "cannot silently auto-block rows" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe

@@ -131,6 +131,10 @@ Use `make list-history-targets` when you need to inspect monthly Gold snapshot
 preconditions, archived files, and forecast-readiness boundaries without
 creating snapshots.
 
+Use `make list-credibility-targets` when you need to inspect credibility scoring
+inputs, outputs, syntheticness benchmark artifacts, and review-pressure
+boundaries without running scoring.
+
 ## Main workflows
 
 ### Standard audit path
