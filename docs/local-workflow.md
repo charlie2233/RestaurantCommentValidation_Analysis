@@ -30,6 +30,8 @@ qsr-audit ingest-workbook --input data/raw/source_workbook.xlsx
 qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
 qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/
+qsr-audit gate-gold
+qsr-audit preflight-release
 qsr-audit report --output reports/
 ```
 
@@ -38,6 +40,9 @@ Or use:
 ```bash
 make run-full-audit
 ```
+
+`make run-full-audit` follows the same standard path, including Gold gate
+generation and release preflight before report generation.
 
 ## Where outputs land
 

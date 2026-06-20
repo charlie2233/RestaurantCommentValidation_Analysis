@@ -17,7 +17,7 @@ help:
 	@printf "  make run-syntheticness  Run syntheticness diagnostics on core metrics\n"
 	@printf "  make run-reconcile      Reconcile Silver metrics against manual references\n"
 	@printf "  make run-report         Generate reports from Gold outputs\n"
-	@printf "  make run-full-audit     Run the standard audit command sequence\n"
+	@printf "  make run-full-audit     Run the standard audit path through release preflight\n"
 	@printf "  make demo-bundle        Package the demo showcase bundle\n"
 	@printf "\n"
 	@printf "Cleanup:\n"
@@ -78,6 +78,8 @@ run-full-audit:
 	qsr-audit validate-workbook --input data/silver --tolerance-auv 0.05
 	qsr-audit run-syntheticness --input data/silver/core_brand_metrics.parquet
 	qsr-audit reconcile --core data/silver/core_brand_metrics.parquet --reference-dir data/reference/
+	qsr-audit gate-gold
+	qsr-audit preflight-release
 	qsr-audit report --output reports/
 
 demo-bundle:
