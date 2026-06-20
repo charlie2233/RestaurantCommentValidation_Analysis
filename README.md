@@ -293,6 +293,7 @@ make check-hygiene
 # Clean ignored artifacts and caches
 make clean-generated
 make clean-build
+make clean-test
 make clean-caches
 
 # Full verification expands to hooks, coverage, hygiene, and package build.

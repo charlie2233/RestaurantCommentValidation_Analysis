@@ -80,6 +80,7 @@ generation and release preflight before report generation.
 
 ```bash
 make clean-build
+make clean-test
 make clean-generated
 make clean-caches
 ```
@@ -87,6 +88,10 @@ make clean-caches
 Use `make clean-build` when you only want to remove Python packaging outputs
 (`dist/`, `build/`, and `*.egg-info`) without touching generated data, reports,
 or strategy artifacts.
+
+Use `make clean-test` when you only want to remove pytest and coverage outputs
+(`.pytest_cache/`, `.coverage`, `coverage.xml`, and `htmlcov/`) without touching
+build outputs or generated data.
 
 ## Optional offline experimentation loop
 

@@ -98,3 +98,16 @@ def test_clean_build_target_removes_only_packaging_outputs() -> None:
     assert "data/" not in recipe
     assert "reports" not in recipe
     assert "strategy" not in recipe
+
+
+def test_clean_test_target_removes_only_test_and_coverage_outputs() -> None:
+    commands = _make_target_commands("clean-test")
+    recipe = "\n".join(commands)
+
+    assert commands == ["rm -rf .pytest_cache .coverage coverage.xml htmlcov"]
+    assert "dist" not in recipe
+    assert "build" not in recipe
+    assert "egg-info" not in recipe
+    assert "data/" not in recipe
+    assert "reports" not in recipe
+    assert "strategy" not in recipe

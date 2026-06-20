@@ -1,4 +1,4 @@
-.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-build clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
+.PHONY: help show-targets setup lint test smoke-cli quick doctor version ci-status verify check-hygiene build-package clean-generated clean-build clean-test clean-caches run-ingest run-validate run-syntheticness run-reconcile run-report run-full-audit demo-bundle
 
 help:
 	@printf "qsr-audit developer commands\n"
@@ -29,6 +29,7 @@ help:
 	@printf "Cleanup:\n"
 	@printf "  make clean-generated    Remove ignored generated data/report artifacts\n"
 	@printf "  make clean-build        Remove package build outputs only\n"
+	@printf "  make clean-test         Remove pytest and coverage artifacts only\n"
 	@printf "  make clean-caches       Remove Python/test/build caches\n"
 
 show-targets:
@@ -101,6 +102,9 @@ clean-generated:
 clean-build:
 	rm -rf dist build
 	find . -path './.venv' -prune -o -path './.git' -prune -o -name '*.egg-info' -type d -prune -exec rm -rf {} +
+
+clean-test:
+	rm -rf .pytest_cache .coverage coverage.xml htmlcov
 
 clean-caches:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
