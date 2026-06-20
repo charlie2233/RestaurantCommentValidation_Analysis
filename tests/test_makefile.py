@@ -148,6 +148,7 @@ def test_list_workflow_targets_prints_command_list_index_only() -> None:
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
@@ -172,6 +173,7 @@ def test_list_diagnostic_targets_prints_non_mutating_scope_notes_only() -> None:
     assert "make list-pipeline-targets" in recipe
     assert "make list-data-targets" in recipe
     assert "make list-governance-targets" in recipe
+    assert "make list-forecasting-targets" in recipe
     assert "make list-rag-targets" in recipe
     assert "make list-report-targets" in recipe
     assert "make list-clean-targets" in recipe
@@ -229,6 +231,32 @@ def test_list_governance_targets_prints_release_gate_scopes_only() -> None:
     assert "artifacts/audit_logs/" in recipe
     assert "publishability reports" in recipe
     assert "reports/audit/gold_publish_scorecard.md" in recipe
+    assert "qsr-audit " not in recipe
+    assert "pytest" not in recipe
+    assert "pre-commit" not in recipe
+    assert "rm -rf" not in recipe
+    assert "find " not in recipe
+    assert all("$(MAKE)" not in command for command in commands)
+
+
+def test_list_forecasting_targets_prints_experiment_scopes_only() -> None:
+    commands = [
+        command.removeprefix("@") for command in _make_target_commands("list-forecasting-targets")
+    ]
+    recipe = "\n".join(commands)
+
+    assert "Forecasting experiment target scopes" in recipe
+    assert "snapshot-gold CLI" in recipe
+    assert "data/gold/history/as_of_date=YYYY-MM-DD/" in recipe
+    assert "snapshot manifest" in recipe
+    assert "data/gold/history/snapshot_manifest.parquet" in recipe
+    assert "build-forecast-panel CLI" in recipe
+    assert "artifacts/forecasting/<metric>/panel.parquet" in recipe
+    assert "forecast-baseline CLI" in recipe
+    assert "artifacts/forecasting/<metric>/" in recipe
+    assert "forecasting boundary" in recipe
+    assert "reports/" in recipe
+    assert "strategy/" in recipe
     assert "qsr-audit " not in recipe
     assert "pytest" not in recipe
     assert "pre-commit" not in recipe

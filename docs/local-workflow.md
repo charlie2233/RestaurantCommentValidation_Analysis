@@ -18,6 +18,7 @@ make list-diagnostic-targets
 make list-verification-targets
 make list-data-targets
 make list-governance-targets
+make list-forecasting-targets
 make list-rag-targets
 make list-report-targets
 make lint
@@ -36,8 +37,8 @@ make check-hygiene
 easier to remember.
 
 Use `make list-workflow-targets` when you want a compact index of the
-diagnostic, verification, data-layer, governance, RAG, report/demo, pipeline,
-and cleanup command-list helpers.
+diagnostic, verification, data-layer, governance, forecasting, RAG, report/demo,
+pipeline, and cleanup command-list helpers.
 
 Use `make list-diagnostic-targets` to compare non-mutating diagnostic and
 discovery helpers without running tests, cleanup, or pipeline commands.
@@ -50,6 +51,10 @@ Raw/Bronze/Silver/Gold scopes without ingesting, validating, or reconciling data
 
 Use `make list-governance-targets` to compare Gold gate, release preflight,
 manifest/audit, and publishability surfaces without running release checks.
+
+Use `make list-forecasting-targets` to compare Gold snapshot, forecast-panel,
+and baseline experiment helpers without creating history snapshots or forecast
+artifacts.
 
 Use `make list-rag-targets` to compare retrieval-only RAG corpus, benchmark,
 reviewer/adjudication, authoring-assist, and inspection helpers without
